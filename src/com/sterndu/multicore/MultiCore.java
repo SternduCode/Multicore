@@ -1,0 +1,194 @@
+package com.sterndu.multicore;
+
+import java.lang.Thread.State;
+import java.util.*;
+import java.util.Map.Entry;
+import java.util.concurrent.atomic.AtomicBoolean;
+import com.sterndu.sorting.Sorters;
+import com.sterndu.util.interfaces.ThrowingConsumer;
+
+public class MultiCore {
+
+
+
+	public static abstract class TaskHandler {
+		protected double prioMult;
+		protected double lastAverage;
+		protected final List<Long> times;
+
+		protected TaskHandler() {
+			prioMult=.1d;
+			lastAverage=.0d;
+			times = new ArrayList<>();
+		}
+
+		protected TaskHandler(double prioMult) {
+			this.prioMult=prioMult;
+			lastAverage=.0d;
+			times = new ArrayList<>();
+		}
+
+		protected void addTime(long time) {
+			synchronized (times) {
+				times.add(time);
+				if (times.size() > 30)
+					times.remove(0);
+			}
+		}
+
+		protected abstract ThrowingConsumer<TaskHandler> getTask();
+
+		protected abstract boolean hasTask();
+
+		public double getAverageTime() {
+			synchronized (times) {
+				return lastAverage = times.parallelStream().mapToLong(l -> l).average().getAsDouble();
+			}
+		}
+
+		public double getLastAverageTime() {
+			return lastAverage;
+		}
+
+		public double getPrioMult() {
+			return prioMult;
+		}
+
+		public List<Long> getTimes(){
+			return new ArrayList<>(times);
+		}
+	}
+
+	private static MultiCore multiCore;
+	static {
+		multiCore = new MultiCore();
+	}
+
+	private final Object simThreadsLock = new Object();
+	private int simultaneousThreads = 0;
+
+	private final AtomicBoolean ab;
+	private int count;
+
+	private final List<TaskHandler> taskHandler;
+
+	private final Thread[] threads;
+	private final ThreadGroup tg;
+	private final Runnable r;
+
+	private MultiCore() {
+		r = () -> {
+			while (true) {
+				Entry<TaskHandler, ThrowingConsumer<TaskHandler>> data = multiCore.getTask();
+				if (data == null)
+					break;
+				ThrowingConsumer<TaskHandler> data2 = data.getValue();
+				if (data2 != null) {
+					long st = System.currentTimeMillis();
+					try {
+						data2.accept(data.getKey());
+						long et = System.currentTimeMillis();
+						et -= st;
+						data.getKey().addTime(et);
+						data.getKey().getAverageTime();
+					} catch (Exception e) {
+						e.printStackTrace();
+					}
+				} else break;
+				try {
+					Thread.sleep(1);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+			}
+		};
+		ab = new AtomicBoolean(false);
+		taskHandler = new ArrayList<>();
+		threads=new Thread[Runtime.getRuntime().availableProcessors()];
+		tg = new ThreadGroup("MultiCore-Worker");
+		for (int i = 0; i < threads.length; i++) threads[i] = new Thread(tg, r, "MultiCore-Worker=" + i);
+		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+			ab.set(true);
+		}));
+	}
+
+	private static void reSort() {
+		synchronized (multiCore.taskHandler) {
+			Collections.shuffle(multiCore.taskHandler);
+			Sorters.combSort(multiCore.taskHandler, false, 3,
+					(d1, d2) -> Double.compare(d2.getLastAverageTime() * d2.prioMult,
+							d1.getLastAverageTime() * d1.prioMult));
+		}
+	}
+
+	public static void addTaskHandler(TaskHandler taskHandler) {
+		synchronized (multiCore.taskHandler) {
+			multiCore.taskHandler.add(taskHandler);
+			reSort();
+		}
+		if (multiCore.simultaneousThreads == 0)
+			synchronized (multiCore.simThreadsLock) {
+				setSimultaneousThreads(getSimultaneousThreads());
+			}
+
+	}
+
+	public static int getSimultaneousThreads() {
+		return multiCore.simultaneousThreads;
+	}
+
+	public static boolean removeTaskHandler(TaskHandler taskHandler) {
+		synchronized (multiCore.taskHandler) {
+			boolean b = multiCore.taskHandler.remove(taskHandler);
+			reSort();
+			return b;
+		}
+
+	}
+
+	public static void setSimultaneousThreads(int amount, int... data) {
+		synchronized (multiCore.simThreadsLock) {
+			multiCore.simultaneousThreads = Math.min(multiCore.threads.length, amount);
+			for (int i = 0; i < multiCore.threads.length; i++)
+				if (multiCore.threads[i].getState().equals(State.TERMINATED))
+					multiCore.threads[i] = new Thread(multiCore.tg, multiCore.r, "MultiCore-Worker=" + i);
+			int temp = Math.min(multiCore.simultaneousThreads,
+					data.length > 0 ? data[0] : multiCore.simultaneousThreads);
+			if (multiCore.tg.activeCount() < temp) {
+				int activate = temp - multiCore.tg.activeCount();
+				for (Thread th: multiCore.threads) {
+					if (!th.isAlive()) {
+						th.start();
+						activate--;
+					}
+					if (activate == 0)
+						break;
+				}
+			}
+		}
+	}
+
+	private synchronized Entry<TaskHandler, ThrowingConsumer<TaskHandler>> getTask() {
+		do {
+			int sum = taskHandler.parallelStream().mapToInt(t -> t.hasTask() ? 1 : 0).sum();
+			if (sum > 0) {
+				synchronized (simThreadsLock) {
+					setSimultaneousThreads(getSimultaneousThreads(), sum);
+				}
+				TaskHandler handler = taskHandler.get(count);
+				if (count == taskHandler.size() - 1) {
+					count = 0;
+					reSort();
+				} else count++;
+				if (handler.hasTask()) return Map.entry(handler, handler.getTask());
+			} else if (ab.get() | tg.activeCount() > 1) return null;
+			try {
+				Thread.sleep(2);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+				return null;
+			}
+		} while (true);
+	}
+
+}
