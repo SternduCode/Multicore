@@ -4,7 +4,6 @@ import java.lang.Thread.State;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
-import com.sterndu.sorting.Sorters;
 import com.sterndu.util.interfaces.ThrowingConsumer;
 
 public class MultiCore {
@@ -115,9 +114,8 @@ public class MultiCore {
 	private static void reSort() {
 		synchronized (multiCore.taskHandler) {
 			Collections.shuffle(multiCore.taskHandler);
-			Sorters.combSort(multiCore.taskHandler, false, 3,
-					(d1, d2) -> Double.compare(d2.getLastAverageTime() * d2.prioMult,
-							d1.getLastAverageTime() * d1.prioMult));
+			Collections.sort(multiCore.taskHandler, (d1, d2) -> Double.compare(d2.getLastAverageTime() * d2.prioMult,
+					d1.getLastAverageTime() * d1.prioMult));
 		}
 	}
 
@@ -176,10 +174,8 @@ public class MultiCore {
 					setSimultaneousThreads(getSimultaneousThreads(), sum);
 				}
 				TaskHandler handler = taskHandler.get(count);
-				if (count == taskHandler.size() - 1) {
-					count = 0;
-					reSort();
-				} else count++;
+				if (count == taskHandler.size() - 1) count = 0;
+				else count++;
 				if (handler.hasTask()) return Map.entry(handler, handler.getTask());
 			} else if (ab.get() | tg.activeCount() > 1) return null;
 			try {
