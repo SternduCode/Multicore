@@ -113,7 +113,6 @@ public class MultiCore {
 
 	private static void reSort() {
 		synchronized (multiCore.taskHandler) {
-			Collections.shuffle(multiCore.taskHandler);
 			Collections.sort(multiCore.taskHandler, (d1, d2) -> Double.compare(d2.getLastAverageTime() * d2.prioMult,
 					d1.getLastAverageTime() * d1.prioMult));
 		}
