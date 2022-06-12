@@ -72,11 +72,12 @@ public class Updater extends MultiCore.TaskHandler {
 	private final Map<Object, Information> l = new HashMap<>(), l2 = new HashMap<>();
 
 	private Updater() {
+		if (instance == null)
+			instance = this;
 		MultiCore.addTaskHandler(this);
-		if (MultiCore.getSimultaneousThreads() < 1) MultiCore.setSimultaneousThreads(1);
 	}
 	public static Updater getInstance() {
-		return instance != null ? instance : (instance = new Updater());
+		return instance != null ? instance : new Updater();
 	}
 
 	private void add(Object key,Information i) {

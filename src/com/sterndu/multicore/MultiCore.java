@@ -4,11 +4,12 @@ import java.lang.Thread.State;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
 import com.sterndu.util.interfaces.ThrowingConsumer;
 
 public class MultiCore {
 
-
+	// TODO max threads
 
 	public static abstract class TaskHandler {
 		protected double prioMult;
@@ -72,7 +73,6 @@ public class MultiCore {
 	private final List<TaskHandler> taskHandler;
 
 	private final Thread[] threads;
-	private final ThreadGroup tg;
 	private final Runnable r;
 
 	private MultiCore() {
@@ -104,11 +104,23 @@ public class MultiCore {
 		ab = new AtomicBoolean(false);
 		taskHandler = new ArrayList<>();
 		threads=new Thread[Runtime.getRuntime().availableProcessors()];
-		tg = new ThreadGroup("MultiCore-Worker");
-		for (int i = 0; i < threads.length; i++) threads[i] = new Thread(tg, r, "MultiCore-Worker=" + i);
+		for (int i = 0; i < threads.length; i++) threads[i] = new Thread(r, "MultiCore-Worker=" + i);
 		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-			ab.set(true);
+			close();
 		}));
+	}
+
+	private static int checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded() {
+		int sum = getAmountOfAvailableTasks();
+		if (sum > 0) synchronized (multiCore.simThreadsLock) {
+			setSimultaneousThreads(getSimultaneousThreads(), sum);
+		}
+		else if (getActiveThreadsCount() == 0) setSimultaneousThreads(getSimultaneousThreads(), 1);
+		return sum;
+	}
+
+	private static int getActiveThreadsCount() {
+		return (int) Stream.of(MultiCore.multiCore.threads).filter(Thread::isAlive).count();
 	}
 
 	private static void reSort() {
@@ -123,11 +135,16 @@ public class MultiCore {
 			multiCore.taskHandler.add(taskHandler);
 			reSort();
 		}
-		if (multiCore.simultaneousThreads == 0)
-			synchronized (multiCore.simThreadsLock) {
-				setSimultaneousThreads(getSimultaneousThreads());
-			}
+		checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded();
 
+	}
+
+	public static void close() {
+		multiCore.ab.set(true);
+	}
+
+	public static int getAmountOfAvailableTasks() {
+		return multiCore.taskHandler.parallelStream().mapToInt(t -> t.hasTask() ? 1 : 0).sum();
 	}
 
 	public static int getSimultaneousThreads() {
@@ -148,11 +165,11 @@ public class MultiCore {
 			multiCore.simultaneousThreads = Math.min(multiCore.threads.length, amount);
 			for (int i = 0; i < multiCore.threads.length; i++)
 				if (multiCore.threads[i].getState().equals(State.TERMINATED))
-					multiCore.threads[i] = new Thread(multiCore.tg, multiCore.r, "MultiCore-Worker=" + i);
-			int temp = Math.min(multiCore.simultaneousThreads,
-					data.length > 0 ? data[0] : multiCore.simultaneousThreads);
-			if (multiCore.tg.activeCount() < temp) {
-				int activate = temp - multiCore.tg.activeCount();
+					multiCore.threads[i] = new Thread(multiCore.r, "MultiCore-Worker=" + i);
+			int temp = Math.max(multiCore.simultaneousThreads,
+					data != null && data.length > 0 ? data[0] : multiCore.simultaneousThreads);
+			if (MultiCore.getActiveThreadsCount() < temp) {
+				int activate = temp - MultiCore.getActiveThreadsCount();
 				for (Thread th: multiCore.threads) {
 					if (!th.isAlive()) {
 						th.start();
@@ -166,24 +183,29 @@ public class MultiCore {
 	}
 
 	private synchronized Entry<TaskHandler, ThrowingConsumer<TaskHandler>> getTask() {
-		do {
-			int sum = taskHandler.parallelStream().mapToInt(t -> t.hasTask() ? 1 : 0).sum();
-			if (sum > 0) {
-				synchronized (simThreadsLock) {
-					setSimultaneousThreads(getSimultaneousThreads(), sum);
-				}
-				TaskHandler handler = taskHandler.get(count);
-				if (count == taskHandler.size() - 1) count = 0;
-				else count++;
-				if (handler.hasTask()) return Map.entry(handler, handler.getTask());
-			} else if (ab.get() | tg.activeCount() > 1) return null;
-			try {
-				Thread.sleep(2);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-				return null;
+
+		if (checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded() > 0) {
+			TaskHandler handler = taskHandler.get(count);
+			if (count == taskHandler.size() - 1) count = 0;
+			else count++;
+			if (handler.hasTask()) return Map.entry(handler, handler.getTask());
+		} else if (ab.get() | MultiCore.getActiveThreadsCount() > 1) return null;
+		try {
+			Thread.sleep(2);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+			return null;
+		}
+		return Map.entry(new TaskHandler() {
+
+			@Override
+			protected ThrowingConsumer<TaskHandler> getTask() { return null; }
+
+			@Override
+			protected boolean hasTask() {
+				return false;
 			}
-		} while (true);
+		}, th -> {});
 	}
 
 }
