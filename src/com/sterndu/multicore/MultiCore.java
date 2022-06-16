@@ -144,7 +144,9 @@ public class MultiCore {
 	}
 
 	public static int getAmountOfAvailableTasks() {
-		return multiCore.taskHandler.parallelStream().mapToInt(t -> t.hasTask() ? 1 : 0).sum();
+		synchronized (multiCore.taskHandler) {
+			return multiCore.taskHandler.parallelStream().mapToInt(t -> t.hasTask() ? 1 : 0).sum();
+		}
 	}
 
 	public static int getSimultaneousThreads() {
