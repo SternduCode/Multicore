@@ -187,9 +187,9 @@ public class MultiCore {
 	private synchronized Entry<TaskHandler, ThrowingConsumer<TaskHandler>> getTask() {
 
 		if (checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded() > 0) {
-			TaskHandler handler = taskHandler.get(count);
 			if (count == taskHandler.size() - 1) count = 0;
 			else count++;
+			TaskHandler handler = taskHandler.get(count);
 			if (handler.hasTask()) return Map.entry(handler, handler.getTask());
 		} else if (ab.get() | MultiCore.getActiveThreadsCount() > 1) return null;
 		try {

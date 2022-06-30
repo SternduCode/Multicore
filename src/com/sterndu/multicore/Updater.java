@@ -89,22 +89,24 @@ public class Updater extends MultiCore.TaskHandler {
 	@Override
 	protected ThrowingConsumer<TaskHandler> getTask() {
 		return t -> {
-			for (final Entry<Object, Information> en: l.entrySet()) try {
-				Information i = en.getValue();
-				List<Long> times = i.times();
-				long lastrun = times.size() == 0 ? 0 : times.get(times.size() - 1), curr = System.currentTimeMillis();
-				if (curr - lastrun >= i.milis()) {
-					en.getValue().tr().run();
-					if (times.size() >= 20) times.remove(0);
-					times.add(curr);
+			synchronized (this) {
+				for (final Entry<Object, Information> en: l.entrySet()) try {
+					Information i = en.getValue();
+					List<Long> times = i.times();
+					long lastrun = times.size() == 0 ? 0 : times.get(times.size() - 1), curr = System.currentTimeMillis();
+					if (curr - lastrun >= i.milis()) {
+						en.getValue().tr().run();
+						if (times.size() >= 20) times.remove(0);
+						times.add(curr);
+					}
+				} catch (final Exception e) {
+					interupted.add(e);
 				}
-			} catch (final Exception e) {
-				interupted.add(e);
-			}
-			synchronized (l2) {
-				if (l2.hashCode() != l.hashCode()) {
-					l.clear();
-					l.putAll(l2);
+				synchronized (l2) {
+					if (l2.hashCode() != l.hashCode()) {
+						l.clear();
+						l.putAll(l2);
+					}
 				}
 			}
 		};
