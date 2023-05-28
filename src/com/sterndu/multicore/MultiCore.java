@@ -3,31 +3,57 @@ package com.sterndu.multicore;
 import java.lang.Thread.State;
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
+
 import com.sterndu.util.interfaces.ThrowingConsumer;
 
+// TODO: Auto-generated Javadoc
+/**
+ * The Class MultiCore.
+ */
 public class MultiCore {
 
-	// TODO max threads
-
+	/**
+	 * The Class TaskHandler.
+	 */
 	public static abstract class TaskHandler {
+
+		/** The prio mult. */
 		protected double prioMult;
+
+		/** The last average. */
 		protected double lastAverage;
+
+		/** The times. */
 		protected final List<Long> times;
 
+		/**
+		 * Instantiates a new task handler.
+		 */
 		protected TaskHandler() {
 			prioMult=.1d;
 			lastAverage=.0d;
 			times = new ArrayList<>();
 		}
 
+		/**
+		 * Instantiates a new task handler.
+		 *
+		 * @param prioMult the prio mult
+		 */
 		protected TaskHandler(double prioMult) {
 			this.prioMult=prioMult;
 			lastAverage=.0d;
 			times = new ArrayList<>();
 		}
 
+		/**
+		 * Adds the time.
+		 *
+		 * @param time the time
+		 */
 		protected void addTime(long time) {
 			synchronized (times) {
 				times.add(time);
@@ -36,45 +62,92 @@ public class MultiCore {
 			}
 		}
 
+		/**
+		 * Gets the task.
+		 *
+		 * @return the task
+		 */
 		protected abstract ThrowingConsumer<TaskHandler> getTask();
 
+		/**
+		 * Checks for task.
+		 *
+		 * @return true, if successful
+		 */
 		protected abstract boolean hasTask();
 
+		/**
+		 * Gets the average time.
+		 *
+		 * @return the average time
+		 */
 		public double getAverageTime() {
 			synchronized (times) {
 				return lastAverage = times.parallelStream().mapToLong(l -> l).average().getAsDouble();
 			}
 		}
 
+		/**
+		 * Gets the last average time.
+		 *
+		 * @return the last average time
+		 */
 		public double getLastAverageTime() {
 			return lastAverage;
 		}
 
+		/**
+		 * Gets the prio mult.
+		 *
+		 * @return the prio mult
+		 */
 		public double getPrioMult() {
 			return prioMult;
 		}
 
+		/**
+		 * Gets the times.
+		 *
+		 * @return the times
+		 */
 		public List<Long> getTimes(){
 			return new ArrayList<>(times);
 		}
 	}
 
+	/** The multi core. */
 	private static MultiCore multiCore;
 	static {
 		multiCore = new MultiCore();
 	}
 
+	/** The ses. */
+	private final ScheduledThreadPoolExecutor ses = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(0);
+
+	/** The sim threads lock. */
 	private final Object simThreadsLock = new Object();
+
+	/** The simultaneous threads. */
 	private int simultaneousThreads = 0;
 
+	/** The ab. */
 	private final AtomicBoolean ab;
+
+	/** The count. */
 	private int count;
 
+	/** The task handler. */
 	private final List<TaskHandler> taskHandler;
 
+	/** The threads. */
 	private final Thread[] threads;
+
+	/** The r. */
 	private final Runnable r;
 
+	/**
+	 * Instantiates a new multi core.
+	 */
 	private MultiCore() {
 		r = () -> {
 			while (true) {
@@ -101,6 +174,7 @@ public class MultiCore {
 				}
 			}
 		};
+		ses.setMaximumPoolSize(Runtime.getRuntime().availableProcessors());
 		ab = new AtomicBoolean(false);
 		taskHandler = new ArrayList<>();
 		threads=new Thread[Runtime.getRuntime().availableProcessors()];
@@ -110,6 +184,11 @@ public class MultiCore {
 		}));
 	}
 
+	/**
+	 * Check if more threads are required and start some if needed.
+	 *
+	 * @return the int
+	 */
 	private static int checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded() {
 		int sum = getAmountOfAvailableTasks();
 		if (sum > 0) synchronized (multiCore.simThreadsLock) {
@@ -119,10 +198,18 @@ public class MultiCore {
 		return sum;
 	}
 
+	/**
+	 * Gets the active threads count.
+	 *
+	 * @return the active threads count
+	 */
 	private static int getActiveThreadsCount() {
 		return (int) Stream.of(MultiCore.multiCore.threads).filter(Thread::isAlive).count();
 	}
 
+	/**
+	 * Re sort.
+	 */
 	private static void reSort() {
 		synchronized (multiCore.taskHandler) {
 			Collections.sort(multiCore.taskHandler, (d1, d2) -> Double.compare(d2.getLastAverageTime() * d2.prioMult,
@@ -130,6 +217,11 @@ public class MultiCore {
 		}
 	}
 
+	/**
+	 * Adds the task handler.
+	 *
+	 * @param taskHandler the task handler
+	 */
 	public static void addTaskHandler(TaskHandler taskHandler) {
 		synchronized (multiCore.taskHandler) {
 			multiCore.taskHandler.add(taskHandler);
@@ -139,20 +231,39 @@ public class MultiCore {
 
 	}
 
+	/**
+	 * Close.
+	 */
 	public static void close() {
 		multiCore.ab.set(true);
 	}
 
+	/**
+	 * Gets the amount of available tasks.
+	 *
+	 * @return the amount of available tasks
+	 */
 	public static int getAmountOfAvailableTasks() {
 		synchronized (multiCore.taskHandler) {
 			return multiCore.taskHandler.parallelStream().mapToInt(t -> t.hasTask() ? 1 : 0).sum();
 		}
 	}
 
+	/**
+	 * Gets the simultaneous threads.
+	 *
+	 * @return the simultaneous threads
+	 */
 	public static int getSimultaneousThreads() {
 		return multiCore.simultaneousThreads;
 	}
 
+	/**
+	 * Removes the task handler.
+	 *
+	 * @param taskHandler the task handler
+	 * @return true, if successful
+	 */
 	public static boolean removeTaskHandler(TaskHandler taskHandler) {
 		synchronized (multiCore.taskHandler) {
 			boolean b = multiCore.taskHandler.remove(taskHandler);
@@ -162,11 +273,17 @@ public class MultiCore {
 
 	}
 
+	/**
+	 * Sets the simultaneous threads.
+	 *
+	 * @param amount the amount
+	 * @param data the data
+	 */
 	public static void setSimultaneousThreads(int amount, int... data) {
 		synchronized (multiCore.simThreadsLock) {
 			multiCore.simultaneousThreads = Math.min(multiCore.threads.length, amount);
 			for (int i = 0; i < multiCore.threads.length; i++)
-				if (multiCore.threads[i].getState().equals(State.TERMINATED))
+				if (State.TERMINATED.equals(multiCore.threads[i].getState()))
 					multiCore.threads[i] = new Thread(multiCore.r, "MultiCore-Worker=" + i);
 			int temp = Math.max(multiCore.simultaneousThreads,
 					data != null && data.length > 0 ? data[0] : multiCore.simultaneousThreads);
@@ -184,6 +301,11 @@ public class MultiCore {
 		}
 	}
 
+	/**
+	 * Gets the task.
+	 *
+	 * @return the task
+	 */
 	private synchronized Entry<TaskHandler, ThrowingConsumer<TaskHandler>> getTask() {
 
 		if (checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded() > 0) {
