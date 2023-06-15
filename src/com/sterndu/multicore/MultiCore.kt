@@ -41,7 +41,7 @@ class MultiCore private constructor() {
 			}
 		}
 
-		abstract val task: ThrowingConsumer<TaskHandler>?
+		abstract fun getTask(): ThrowingConsumer<TaskHandler>?
 
 		abstract fun hasTask(): Boolean
 		val averageTime: Double
@@ -122,7 +122,7 @@ class MultiCore private constructor() {
 			if (checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded() > 0) {
 				if (count == taskHandler.size - 1) count = 0 else count++
 				val handler = taskHandler[count]
-				if (handler.hasTask()) return java.util.Map.entry(handler, handler.task!!)
+				if (handler.hasTask()) return java.util.Map.entry(handler, handler.getTask()!!)
 			} else if (ab.get() or (activeThreadsCount > 1)) return null
 			try {
 				Thread.sleep(2)
@@ -131,8 +131,8 @@ class MultiCore private constructor() {
 				return null
 			}
 			return java.util.Map.entry<TaskHandler, ThrowingConsumer<TaskHandler>>(object : TaskHandler() {
-				override val task: ThrowingConsumer<TaskHandler>
-					get() = ThrowingConsumer {  }
+
+				override fun getTask(): ThrowingConsumer<TaskHandler> = ThrowingConsumer {  }
 
 				override fun hasTask(): Boolean {
 					return false

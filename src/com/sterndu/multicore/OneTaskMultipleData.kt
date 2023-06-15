@@ -54,7 +54,7 @@ class OneTaskMultipleData<T, E, O> : TaskHandler {
 		return results
 	}
 
-	public override fun getTask(): ThrowingConsumer<TaskHandler> {
+	override fun getTask(): ThrowingConsumer<TaskHandler> {
 		return ThrowingConsumer {
 			val entry = paramsFromList
 			val ta = task
