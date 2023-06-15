@@ -2,7 +2,6 @@
 package com.sterndu.multicore
 
 import com.sterndu.util.interfaces.ThrowingConsumer
-import java.util.*
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.atomic.AtomicBoolean
@@ -20,24 +19,28 @@ class MultiCore private constructor() {
 		var lastAverageTime: Double
 			protected set
 
-		protected val times: MutableList<Long>
+		private val _times: MutableList<Long>
+
+		val times: List<Long>
+			get() = _times.toList()
+
 
 		protected constructor() {
 			prioMult = .1
 			lastAverageTime = .0
-			times = ArrayList()
+			_times = ArrayList()
 		}
 
 		protected constructor(prioMult: Double) {
 			this.prioMult = prioMult
 			lastAverageTime = .0
-			times = ArrayList()
+			_times = ArrayList()
 		}
 
 		fun addTime(time: Long) {
-			synchronized(times) {
-				times.add(time)
-				if (times.size > 30) times.removeAt(0)
+			synchronized(_times) {
+				_times.add(time)
+				if (_times.size > 30) _times.removeAt(0)
 			}
 		}
 
@@ -46,19 +49,11 @@ class MultiCore private constructor() {
 		abstract fun hasTask(): Boolean
 		val averageTime: Double
 			get() {
-				synchronized(times) {
-					return times.average().also { lastAverageTime = it }
+				synchronized(_times) {
+					return _times.average().also { lastAverageTime = it }
 				}
 			}
 
-		/**
-		 * Gets the times.
-		 *
-		 * @return the times
-		 */
-		fun getTimes(): List<Long> {
-			return ArrayList(times)
-		}
 	}
 
 	/** The ses.  */
