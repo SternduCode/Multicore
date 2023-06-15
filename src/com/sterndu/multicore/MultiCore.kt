@@ -1,335 +1,221 @@
-package com.sterndu.multicore;
+@file:JvmName("MultiCore")
+package com.sterndu.multicore
 
-import java.lang.Thread.State;
-import java.util.*;
-import java.util.Map.Entry;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Stream;
+import com.sterndu.util.interfaces.ThrowingConsumer
+import java.util.*
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledThreadPoolExecutor
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.stream.Stream
 
-import com.sterndu.util.interfaces.ThrowingConsumer;
 
-// TODO: Auto-generated Javadoc
-/**
- * The Class MultiCore.
- */
-public class MultiCore {
-
+class MultiCore private constructor() {
 	/**
 	 * The Class TaskHandler.
 	 */
-	public static abstract class TaskHandler {
+	abstract class TaskHandler {
 
-		/** The prio mult. */
-		protected double prioMult;
+		var prioMult: Double
 
-		/** The last average. */
-		protected double lastAverage;
+		var lastAverageTime: Double
+			protected set
 
-		/** The times. */
-		protected final List<Long> times;
+		protected val times: MutableList<Long>
 
-		/**
-		 * Instantiates a new task handler.
-		 */
-		protected TaskHandler() {
-			prioMult=.1d;
-			lastAverage=.0d;
-			times = new ArrayList<>();
+		protected constructor() {
+			prioMult = .1
+			lastAverageTime = .0
+			times = ArrayList()
 		}
 
-		/**
-		 * Instantiates a new task handler.
-		 *
-		 * @param prioMult the prio mult
-		 */
-		protected TaskHandler(double prioMult) {
-			this.prioMult=prioMult;
-			lastAverage=.0d;
-			times = new ArrayList<>();
+		protected constructor(prioMult: Double) {
+			this.prioMult = prioMult
+			lastAverageTime = .0
+			times = ArrayList()
 		}
 
-		/**
-		 * Adds the time.
-		 *
-		 * @param time the time
-		 */
-		protected void addTime(long time) {
-			synchronized (times) {
-				times.add(time);
-				if (times.size() > 30)
-					times.remove(0);
+		fun addTime(time: Long) {
+			synchronized(times) {
+				times.add(time)
+				if (times.size > 30) times.removeAt(0)
 			}
 		}
 
-		/**
-		 * Gets the task.
-		 *
-		 * @return the task
-		 */
-		protected abstract ThrowingConsumer<TaskHandler> getTask();
+		abstract val task: ThrowingConsumer<TaskHandler>?
 
-		/**
-		 * Checks for task.
-		 *
-		 * @return true, if successful
-		 */
-		protected abstract boolean hasTask();
-
-		/**
-		 * Gets the average time.
-		 *
-		 * @return the average time
-		 */
-		public double getAverageTime() {
-			synchronized (times) {
-				return lastAverage = times.parallelStream().mapToLong(l -> l).average().getAsDouble();
+		abstract fun hasTask(): Boolean
+		val averageTime: Double
+			get() {
+				synchronized(times) {
+					return times.average().also { lastAverageTime = it }
+				}
 			}
-		}
-
-		/**
-		 * Gets the last average time.
-		 *
-		 * @return the last average time
-		 */
-		public double getLastAverageTime() {
-			return lastAverage;
-		}
-
-		/**
-		 * Gets the prio mult.
-		 *
-		 * @return the prio mult
-		 */
-		public double getPrioMult() {
-			return prioMult;
-		}
 
 		/**
 		 * Gets the times.
 		 *
 		 * @return the times
 		 */
-		public List<Long> getTimes(){
-			return new ArrayList<>(times);
+		fun getTimes(): List<Long> {
+			return ArrayList(times)
 		}
 	}
 
-	/** The multi core. */
-	private static MultiCore multiCore;
-	static {
-		multiCore = new MultiCore();
-	}
+	/** The ses.  */
+	private val ses = Executors.newScheduledThreadPool(0) as ScheduledThreadPoolExecutor
 
-	/** The ses. */
-	private final ScheduledThreadPoolExecutor ses = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(0);
+	/** The sim threads lock.  */
+	private val simThreadsLock = Any()
 
-	/** The sim threads lock. */
-	private final Object simThreadsLock = new Object();
+	/** The simultaneous threads.  */
+	private var simultaneousThreads = 0
 
-	/** The simultaneous threads. */
-	private int simultaneousThreads = 0;
+	/** The ab.  */
+	private val ab: AtomicBoolean
 
-	/** The ab. */
-	private final AtomicBoolean ab;
+	/** The count.  */
+	private var count = 0
 
-	/** The count. */
-	private int count;
+	/** The task handler.  */
+	private val taskHandler: MutableList<TaskHandler>
 
-	/** The task handler. */
-	private final List<TaskHandler> taskHandler;
+	/** The threads.  */
+	private val threads: Array<Thread?>
 
-	/** The threads. */
-	private final Thread[] threads;
+	/** The r.  */
+	private val r: Runnable
 
-	/** The r. */
-	private final Runnable r;
-
-	/**
-	 * Instantiates a new multi core.
-	 */
-	private MultiCore() {
-		r = () -> {
+	init {
+		r = Runnable {
 			while (true) {
-				Entry<TaskHandler, ThrowingConsumer<TaskHandler>> data = multiCore.getTask();
-				if (data == null)
-					break;
-				ThrowingConsumer<TaskHandler> data2 = data.getValue();
-				if (data2 != null) {
-					long st = System.currentTimeMillis();
+				val (key, data2) = multiCore.task ?: break
+				if (key.hasTask()) {
+					val st = System.currentTimeMillis()
 					try {
-						data2.accept(data.getKey());
-						long et = System.currentTimeMillis();
-						et -= st;
-						data.getKey().addTime(et);
-						data.getKey().getAverageTime();
-					} catch (Exception e) {
-						e.printStackTrace();
+						data2.accept(key)
+						var et = System.currentTimeMillis()
+						et -= st
+						key.addTime(et)
+						key.averageTime
+					} catch (e: Exception) {
+						e.printStackTrace()
 					}
-				} else break;
+				} else break
 				try {
-					Thread.sleep(1);
-				} catch (InterruptedException e) {
-					e.printStackTrace();
+					Thread.sleep(1)
+				} catch (e: InterruptedException) {
+					e.printStackTrace()
 				}
 			}
-		};
-		ses.setMaximumPoolSize(Runtime.getRuntime().availableProcessors());
-		ab = new AtomicBoolean(false);
-		taskHandler = new ArrayList<>();
-		threads=new Thread[Runtime.getRuntime().availableProcessors()];
-		for (int i = 0; i < threads.length; i++) threads[i] = new Thread(r, "MultiCore-Worker=" + i);
-		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-			close();
-		}));
-	}
-
-	/**
-	 * Check if more threads are required and start some if needed.
-	 *
-	 * @return the int
-	 */
-	private static int checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded() {
-		int sum = getAmountOfAvailableTasks();
-		if (sum > 0) synchronized (multiCore.simThreadsLock) {
-			setSimultaneousThreads(getSimultaneousThreads(), sum);
 		}
-		else if (getActiveThreadsCount() == 0) setSimultaneousThreads(getSimultaneousThreads(), 1);
-		return sum;
+		ses.maximumPoolSize = Runtime.getRuntime().availableProcessors()
+		ab = AtomicBoolean(false)
+		taskHandler = ArrayList()
+		threads = arrayOfNulls(Runtime.getRuntime().availableProcessors())
+		for (i in threads.indices) threads[i] = Thread(r, "MultiCore-Worker=$i")
+		Runtime.getRuntime().addShutdownHook(Thread { close() })
 	}
 
-	/**
-	 * Gets the active threads count.
-	 *
-	 * @return the active threads count
-	 */
-	private static int getActiveThreadsCount() {
-		return (int) Stream.of(MultiCore.multiCore.threads).filter(Thread::isAlive).count();
-	}
+	@get:Synchronized
+	private val task: Map.Entry<TaskHandler, ThrowingConsumer<TaskHandler>>?
+		get() {
+			if (checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded() > 0) {
+				if (count == taskHandler.size - 1) count = 0 else count++
+				val handler = taskHandler[count]
+				if (handler.hasTask()) return java.util.Map.entry(handler, handler.task!!)
+			} else if (ab.get() or (activeThreadsCount > 1)) return null
+			try {
+				Thread.sleep(2)
+			} catch (e: InterruptedException) {
+				e.printStackTrace()
+				return null
+			}
+			return java.util.Map.entry<TaskHandler, ThrowingConsumer<TaskHandler>>(object : TaskHandler() {
+				override val task: ThrowingConsumer<TaskHandler>
+					get() = ThrowingConsumer {  }
 
-	/**
-	 * Re sort.
-	 */
-	private static void reSort() {
-		synchronized (multiCore.taskHandler) {
-			Collections.sort(multiCore.taskHandler, (d1, d2) -> Double.compare(d2.getLastAverageTime() * d2.prioMult,
-					d1.getLastAverageTime() * d1.prioMult));
-		}
-	}
-
-	/**
-	 * Adds the task handler.
-	 *
-	 * @param taskHandler the task handler
-	 */
-	public static void addTaskHandler(TaskHandler taskHandler) {
-		synchronized (multiCore.taskHandler) {
-			multiCore.taskHandler.add(taskHandler);
-			reSort();
-		}
-		checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded();
-
-	}
-
-	/**
-	 * Close.
-	 */
-	public static void close() {
-		multiCore.ab.set(true);
-	}
-
-	/**
-	 * Gets the amount of available tasks.
-	 *
-	 * @return the amount of available tasks
-	 */
-	public static int getAmountOfAvailableTasks() {
-		synchronized (multiCore.taskHandler) {
-			return multiCore.taskHandler.parallelStream().mapToInt(t -> t.hasTask() ? 1 : 0).sum();
-		}
-	}
-
-	/**
-	 * Gets the simultaneous threads.
-	 *
-	 * @return the simultaneous threads
-	 */
-	public static int getSimultaneousThreads() {
-		return multiCore.simultaneousThreads;
-	}
-
-	/**
-	 * Removes the task handler.
-	 *
-	 * @param taskHandler the task handler
-	 * @return true, if successful
-	 */
-	public static boolean removeTaskHandler(TaskHandler taskHandler) {
-		synchronized (multiCore.taskHandler) {
-			boolean b = multiCore.taskHandler.remove(taskHandler);
-			reSort();
-			return b;
+				override fun hasTask(): Boolean {
+					return false
+				}
+			}, ThrowingConsumer {  })
 		}
 
-	}
+	companion object {
 
-	/**
-	 * Sets the simultaneous threads.
-	 *
-	 * @param amount the amount
-	 * @param data the data
-	 */
-	public static void setSimultaneousThreads(int amount, int... data) {
-		synchronized (multiCore.simThreadsLock) {
-			multiCore.simultaneousThreads = Math.min(multiCore.threads.length, amount);
-			for (int i = 0; i < multiCore.threads.length; i++)
-				if (State.TERMINATED.equals(multiCore.threads[i].getState()))
-					multiCore.threads[i] = new Thread(multiCore.r, "MultiCore-Worker=" + i);
-			int temp = Math.max(multiCore.simultaneousThreads,
-					data != null && data.length > 0 ? data[0] : multiCore.simultaneousThreads);
-			if (MultiCore.getActiveThreadsCount() < temp) {
-				int activate = temp - MultiCore.getActiveThreadsCount();
-				for (Thread th: multiCore.threads) {
-					if (!th.isAlive()) {
-						th.start();
-						activate--;
+		private var multiCore: MultiCore = MultiCore()
+
+		private fun checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded(): Int {
+			val sum = amountOfAvailableTasks
+			if (sum > 0) synchronized(multiCore.simThreadsLock) {
+				setSimultaneousThreads(getSimultaneousThreads(), sum)
+			} else if (activeThreadsCount == 0) setSimultaneousThreads(getSimultaneousThreads(), 1)
+			return sum
+		}
+
+		private val activeThreadsCount: Int
+			get() = Stream.of(*multiCore.threads).filter { obj: Thread? -> obj != null && obj.isAlive }
+				.count().toInt()
+
+		private fun reSort() {
+			synchronized(multiCore.taskHandler) {
+				multiCore.taskHandler.sortWith { d1: TaskHandler, d2: TaskHandler ->
+					(d2.lastAverageTime * d2.prioMult).compareTo(d1.lastAverageTime * d1.prioMult)
+				}
+			}
+		}
+
+		fun addTaskHandler(taskHandler: TaskHandler) {
+			synchronized(multiCore.taskHandler) {
+				multiCore.taskHandler.add(taskHandler)
+				reSort()
+			}
+			checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded()
+		}
+
+		fun close() {
+			multiCore.ab.set(true)
+		}
+
+		val amountOfAvailableTasks: Int
+			get() {
+				synchronized(multiCore.taskHandler) {
+					return multiCore.taskHandler.parallelStream()
+						.mapToInt { t: TaskHandler -> if (t.hasTask()) 1 else 0 }
+						.sum()
+				}
+			}
+
+		fun getSimultaneousThreads(): Int {
+			return multiCore.simultaneousThreads
+		}
+
+		fun removeTaskHandler(taskHandler: TaskHandler): Boolean {
+			synchronized(multiCore.taskHandler) {
+				val b = multiCore.taskHandler.remove(taskHandler)
+				reSort()
+				return b
+			}
+		}
+
+		fun setSimultaneousThreads(amount: Int, vararg data: Int) {
+			synchronized(multiCore.simThreadsLock) {
+				multiCore.simultaneousThreads = multiCore.threads.size.coerceAtMost(amount)
+				for (i in multiCore.threads.indices) if (
+					Thread.State.TERMINATED == multiCore.threads[i]!!.state
+				) multiCore.threads[i] = Thread(multiCore.r, "MultiCore-Worker=$i")
+				val temp =
+					multiCore.simultaneousThreads.coerceAtLeast(if (data.isNotEmpty()) data[0] else multiCore.simultaneousThreads)
+				if (activeThreadsCount < temp) {
+					var activate = temp - activeThreadsCount
+					for (th in multiCore.threads) {
+						if (!th!!.isAlive) {
+							th.start()
+							activate--
+						}
+						if (activate == 0) break
 					}
-					if (activate == 0)
-						break;
 				}
 			}
 		}
 	}
-
-	/**
-	 * Gets the task.
-	 *
-	 * @return the task
-	 */
-	private synchronized Entry<TaskHandler, ThrowingConsumer<TaskHandler>> getTask() {
-
-		if (checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded() > 0) {
-			if (count == taskHandler.size() - 1) count = 0;
-			else count++;
-			TaskHandler handler = taskHandler.get(count);
-			if (handler.hasTask()) return Map.entry(handler, handler.getTask());
-		} else if (ab.get() | MultiCore.getActiveThreadsCount() > 1) return null;
-		try {
-			Thread.sleep(2);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-			return null;
-		}
-		return Map.entry(new TaskHandler() {
-
-			@Override
-			protected ThrowingConsumer<TaskHandler> getTask() { return null; }
-
-			@Override
-			protected boolean hasTask() {
-				return false;
-			}
-		}, th -> {});
-	}
-
 }

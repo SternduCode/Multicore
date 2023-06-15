@@ -1,90 +1,42 @@
-package com.sterndu.multicore;
+@file:JvmName("Updater")
+package com.sterndu.multicore
 
-import java.util.*;
-import java.util.Map.Entry;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.*;
-import java.util.stream.*;
-
-import com.sterndu.multicore.MultiCore.TaskHandler;
-import com.sterndu.util.interfaces.*;
+import com.sterndu.multicore.MultiCore.TaskHandler
+import com.sterndu.util.interfaces.ThrowingConsumer
+import com.sterndu.util.interfaces.ThrowingRunnable
+import java.util.*
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.collections.ArrayList
 
 // TODO: Auto-generated Javadoc
 /**
  * The Class Updater.
  */
-public class Updater extends MultiCore.TaskHandler {
-
+class Updater private constructor() : TaskHandler() {
 	/**
 	 * The  Information.
 	 */
-	private static final class Information {
-		private final Long millis;
-		private final List<Long> times;
-		private final Class<?> clazz;
-		private final ThrowingRunnable tr;
+	private data class Information(
+		val millis: Long = 0L,
+		val times: MutableList<Long> = ArrayList(),
+		val clazz: Class<*>,
+		val tr: ThrowingRunnable
+	) {
 
-		public Information(Long millis, List<Long> times, Class<?> clazz, ThrowingRunnable tr) {
-			this.millis = millis;
-			this.times = times;
-			this.clazz = clazz;
-			this.tr = tr;
+		override fun equals(other: Any?): Boolean {
+			if (other === this) return true
+			if (other == null || other.javaClass != this.javaClass) return false
+			val that = other as Information
+			return millis == that.millis && clazz == that.clazz && tr === that.tr
 		}
 
-		/**
-		 * Instantiates new information.
-		 *
-		 * @param clazz the clazz
-		 * @param tr the tr
-		 */
-		private Information(Class<?> clazz, ThrowingRunnable tr) {
-			this(0L, new ArrayList<>(), clazz, tr);
+		override fun hashCode(): Int {
+			return Objects.hash(millis, clazz, tr)
 		}
 
-		/**
-		 * Instantiates new information.
-		 *
-		 * @param millis the millis
-		 * @param clazz the clazz
-		 * @param tr the tr
-		 */
-		private Information(Long millis, Class<?> clazz, ThrowingRunnable tr) {
-			this(millis, new ArrayList<>(), clazz, tr);
-		}
-
-		public Long millis() {
-			return millis;
-		}
-
-		public List<Long> times() {
-			return times;
-		}
-
-		public Class<?> clazz() {
-			return clazz;
-		}
-
-		public ThrowingRunnable tr() {
-			return tr;
-		}
-
-		@Override
-		public boolean equals(Object obj) {
-			if (obj == this) return true;
-			if (obj == null || obj.getClass() != this.getClass()) return false;
-			Information that = (Information) obj;
-			return Objects.equals(this.millis, that.millis);
-		}
-
-		@Override
-		public int hashCode() {
-			return Objects.hash(millis);
-		}
-
-		@Override
-		public String toString() {
+		override fun toString(): String {
 			return "Information[" +
-					"millis=" + millis + ']';
+					"millis=" + millis + ']'
 		}
 
 		/**
@@ -92,76 +44,24 @@ public class Updater extends MultiCore.TaskHandler {
 		 *
 		 * @return the double
 		 */
-		public Double avgFreq() {
-			return times.size() < 2 ? Double.POSITIVE_INFINITY
-					: times.stream().collect(new Collector<Long, List<Long>, LongStream>() {
-
-				private Long last = null;
-
-				@Override
-				public BiConsumer<List<Long>, Long> accumulator() {
-					return (li, l) -> {
-						if ( last != null) li.add(l - last);
-						last = l;
-					};
-				}
-
-				@Override
-				public Set<Characteristics> characteristics() {
-					return new HashSet<>();
-				}
-
-				@Override
-				public BinaryOperator<List<Long>> combiner() {
-					return (li1, li2) -> {
-						li1.addAll(li2);
-						return li1;
-					};
-				}
-
-				@Override
-				public Function<List<Long>, LongStream> finisher() {
-					return li -> li.parallelStream().mapToLong(l -> l);
-				}
-
-				@Override
-				public Supplier<List<Long>> supplier() {
-					return ArrayList::new;
-				}
-			}).average().getAsDouble();
+		fun avgFreq(): Double {
+			return if (times.size < 2) Double.POSITIVE_INFINITY else
+				times.mapIndexed { index, value -> if (index > 0) value - times[index - 1] else 0 }.drop(1).average()
 		}
-
 	}
 
-	/** The instance. */
-	private static Updater instance;
+	/** The interrupted.  */
+	private val interrupted: MutableList<Exception> = ArrayList()
 
-	static {
-		getInstance();
-	}
-
-	/** The interupted. */
-	private final List<Exception> interupted = new ArrayList<>();
-
-	/** The l. */
-	private final ConcurrentHashMap<Object, Information> l = new ConcurrentHashMap<>();
+	/** The l.  */
+	private val l = ConcurrentHashMap<Any, Information>()
 
 	/**
 	 * Instantiates a new updater.
 	 */
-	private Updater() {
-		if (instance == null)
-			instance = this;
-		MultiCore.addTaskHandler(this);
-	}
-
-	/**
-	 * Gets the single instance of Updater.
-	 *
-	 * @return single instance of Updater
-	 */
-	public static Updater getInstance() {
-		return instance != null ? instance : new Updater();
+	init {
+		instance = this
+		MultiCore.addTaskHandler(this)
 	}
 
 	/**
@@ -170,8 +70,8 @@ public class Updater extends MultiCore.TaskHandler {
 	 * @param key the key
 	 * @param i the i
 	 */
-	private void add(Object key,Information i) {
-		l.put(key, i);
+	private fun add(key: Any, i: Information) {
+		l[key] = i
 	}
 
 	/**
@@ -179,24 +79,23 @@ public class Updater extends MultiCore.TaskHandler {
 	 *
 	 * @return the task
 	 */
-	@Override
-	protected ThrowingConsumer<TaskHandler> getTask() {
-		return t -> {
-			synchronized (this) {
-				for (final Entry<Object, Information> en: l.entrySet()) try {
-					Information i = en.getValue();
-					List<Long> times = i.times();
-					long lastrun = times.size() == 0 ? 0 : times.get(times.size() - 1), curr = System.currentTimeMillis();
-					if (curr - lastrun >= i.millis()) {
-						en.getValue().tr().run();
-						if (times.size() >= 20) times.remove(0);
-						times.add(curr);
+	override fun getTask(): ThrowingConsumer<TaskHandler> {
+		return ThrowingConsumer {
+			synchronized(this) {
+				for ((_, i) in l) try {
+					val times = i.times
+					val lastRun = if (times.isEmpty()) 0 else times.last()
+					val curr = System.currentTimeMillis()
+					if (curr - lastRun >= i.millis) {
+						i.tr.run()
+						if (times.size >= 20) times.removeAt(0)
+						times.add(curr)
 					}
-				} catch (final Exception e) {
-					interupted.add(e);
+				} catch (e: Exception) {
+					interrupted.add(e)
 				}
 			}
-		};
+		}
 	}
 
 	/**
@@ -204,9 +103,8 @@ public class Updater extends MultiCore.TaskHandler {
 	 *
 	 * @return true, if successful
 	 */
-	@Override
-	protected boolean hasTask() {
-		return Updater.getInstance().l.size() > 0;
+	override fun hasTask(): Boolean {
+		return getInstance().l.size > 0
 	}
 
 	/**
@@ -215,19 +113,17 @@ public class Updater extends MultiCore.TaskHandler {
 	 * @param <R> the generic type
 	 * @param r the r
 	 * @param key the key
-	 */
-	public <R> void add(R r, Object key) {
+	</R> */
+	fun <R> add(r: R, key: Any) {
 		try {
-			final Class<?> caller = Class.forName(Thread.currentThread().getStackTrace()[2].getClassName());
-			if (r instanceof ThrowingRunnable) {
-				ThrowingRunnable tr = (ThrowingRunnable) r;
-				add(key, new Information(caller, tr));
-			} else if (r instanceof Runnable) {
-				Runnable rr = (Runnable) r;
-				add(key, new Information(caller, rr::run));
+			val caller = Class.forName(Thread.currentThread().stackTrace[2].className)
+			if (r is ThrowingRunnable) {
+				add(key, Information(clazz = caller, tr = r))
+			} else if (r is Runnable) {
+				add(key, Information(clazz = caller, tr = r::run))
 			}
-		} catch (ClassNotFoundException e) {
-			e.printStackTrace();
+		} catch (e: ClassNotFoundException) {
+			e.printStackTrace()
 		}
 	}
 
@@ -238,19 +134,17 @@ public class Updater extends MultiCore.TaskHandler {
 	 * @param r the r
 	 * @param key the key
 	 * @param millis the millis
-	 */
-	public <R> void add(R r, Object key, long millis) {
+	</R> */
+	fun <R> add(r: R, key: Any, millis: Long) {
 		try {
-			final Class<?> caller = Class.forName(Thread.currentThread().getStackTrace()[2].getClassName());
-			if (r instanceof ThrowingRunnable) {
-				ThrowingRunnable tr = (ThrowingRunnable) r;
-				add(key, new Information(millis, caller, tr));
-			} else if (r instanceof Runnable) {
-				Runnable rr = (Runnable) r;
-				add(key, new Information(millis, caller, rr::run));
+			val caller = Class.forName(Thread.currentThread().stackTrace[2].className)
+			if (r is ThrowingRunnable) {
+				add(key, Information(millis, clazz = caller, tr = r))
+			} else if (r is Runnable) {
+				add(key, Information(millis, clazz = caller, tr = r::run))
 			}
-		} catch (ClassNotFoundException e) {
-			e.printStackTrace();
+		} catch (e: ClassNotFoundException) {
+			e.printStackTrace()
 		}
 	}
 
@@ -261,15 +155,17 @@ public class Updater extends MultiCore.TaskHandler {
 	 * @param millis the millis
 	 * @return true, if successful
 	 */
-	public boolean changeTargetFreq(Object key,Long millis) {
-		try {
-			final Class<?> caller = Class.forName(Thread.currentThread().getStackTrace()[2].getClassName());
-			Information		i		= l.get(key);
-			if (i == null || !i.clazz.equals(caller)) return false;
-			return l.replace(key, new Information(millis, l.get(key).times(), caller, l.get(key).tr())) != null;
-		} catch (ClassNotFoundException e) {
-			e.printStackTrace();
-			return false;
+	fun changeTargetFreq(key: Any, millis: Long): Boolean {
+		return try {
+			val caller = Class.forName(Thread.currentThread().stackTrace[2].className)
+			val i = l[key]
+			if (i == null || i.clazz != caller) false else l.replace(
+				key,
+				Information(millis, l[key]!!.times, caller, l[key]!!.tr)
+			) != null
+		} catch (e: ClassNotFoundException) {
+			e.printStackTrace()
+			false
 		}
 	}
 
@@ -279,24 +175,19 @@ public class Updater extends MultiCore.TaskHandler {
 	 * @param key the key
 	 * @return the avg exec freq
 	 */
-	public Double getAvgExecFreq(Object key) {
-		try {
-			final Class<?> caller = Class.forName(Thread.currentThread().getStackTrace()[2].getClassName());
-			Information		i		= l.get(key);
-			if (i == null || !i.clazz.equals(caller)) return 0.0d;
-			return l.get(key).avgFreq();
-		} catch (ClassNotFoundException e) {
-			e.printStackTrace();
-			return 0.0d;
+	fun getAvgExecFreq(key: Any): Double {
+		return try {
+			val caller = Class.forName(Thread.currentThread().stackTrace[2].className)
+			val i = l[key]
+			if (i == null || i.clazz != caller) 0.0 else l[key]!!.avgFreq()
+		} catch (e: ClassNotFoundException) {
+			e.printStackTrace()
+			0.0
 		}
 	}
 
-	/**
-	 * Gets the exceptions.
-	 *
-	 * @return the exceptions
-	 */
-	public List<Exception> getExceptions() {return interupted;}
+	val exceptions: List<Exception>
+		get() = interrupted
 
 	/**
 	 * Removes the.
@@ -304,27 +195,45 @@ public class Updater extends MultiCore.TaskHandler {
 	 * @param key the key
 	 * @return true, if successful
 	 */
-	public boolean remove(Object key) {
-		try {
-			final Class<?> caller = Class.forName(Thread.currentThread().getStackTrace()[2].getClassName());
-			Information		i		= l.get(key);
-			if (i == null || !i.clazz.equals(caller)) return false;
-			return l.remove(key) != null;
-		} catch (ClassNotFoundException e) {
-			e.printStackTrace();
-			return false;
+	fun remove(key: Any): Boolean {
+		return try {
+			val caller = Class.forName(Thread.currentThread().stackTrace[2].className)
+			val i = l[key]
+			if (i == null || i.clazz != caller) false else l.remove(key) != null
+		} catch (e: ClassNotFoundException) {
+			e.printStackTrace()
+			false
 		}
 	}
 
 	/**
 	 * Removes the all.
 	 */
-	public void removeAll() {
+	fun removeAll() {
 		try {
-			final Class<?> caller = Class.forName(Thread.currentThread().getStackTrace()[2].getClassName());
-			l.entrySet().removeIf(e -> e.getValue().clazz().equals(caller));
-		} catch (ClassNotFoundException e) {
-			e.printStackTrace();
+			val caller = Class.forName(Thread.currentThread().stackTrace[2].className)
+			l.entries.removeIf { (_, value): Map.Entry<Any, Information> -> value.clazz == caller }
+		} catch (e: ClassNotFoundException) {
+			e.printStackTrace()
+		}
+	}
+
+	companion object {
+		/** The instance.  */
+		private lateinit var instance: Updater
+
+		init {
+			Updater()
+		}
+
+		/**
+		 * Gets the single instance of Updater.
+		 *
+		 * @return single instance of Updater
+		 */
+		@JvmStatic
+		fun getInstance(): Updater {
+			return instance
 		}
 	}
 }

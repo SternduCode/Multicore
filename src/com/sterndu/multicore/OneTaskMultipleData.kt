@@ -1,85 +1,69 @@
-package com.sterndu.multicore;
+@file:JvmName("OneTaskMultipleData")
+package com.sterndu.multicore
 
-import java.util.*;
-import java.util.Map.Entry;
-import com.sterndu.multicore.MultiCore.TaskHandler;
-import com.sterndu.util.interfaces.ThrowingConsumer;
+import com.sterndu.multicore.MultiCore.TaskHandler
+import com.sterndu.util.interfaces.ThrowingConsumer
+import java.util.*
 
-public class OneTaskMultipleData<T, E, O> extends TaskHandler {
-
-	@FunctionalInterface
-	public interface Task<E, O> {
-
-		O run(E[] e);
-
-	}
-	private final Task<E, O> task;
-	private final Map<T, O> results;
-	private final List<Entry<T, E[]>> params_list;
-
-	private final Object lock = new Object();
-	private int active_tasks = 0;
-
-	public OneTaskMultipleData(Task<E, O> task) {
-		this.task = task;
-		results = new HashMap<>();
-		params_list = new LinkedList<>();
+class OneTaskMultipleData<T, E, O> : TaskHandler {
+	fun interface Task<E, O> {
+		fun run(e: Array<out E>): O
 	}
 
-	public OneTaskMultipleData(Task<E, O> task,double prioMult) {
-		super(prioMult);
-		this.task = task;
-		results = new HashMap<>();
-		params_list = new LinkedList<>();
+	private val task: Task<E, O>
+	private val results: MutableMap<T, O>
+	private val params_list: MutableList<Pair<T, Array<out E>>>
+	private val lock = Any()
+	private var active_tasks = 0
+
+	constructor(task: Task<E, O>) {
+		this.task = task
+		results = HashMap()
+		params_list = LinkedList()
 	}
 
-	private Entry<T,E[]> getParamsFromList(){
-		if (params_list.size()>0) synchronized (params_list) {
-			synchronized (lock) {
-				active_tasks++;
-			}
-			Entry<T,E[]> e=params_list.get(0);
-			params_list.remove(0);
-			return e;
+	constructor(task: Task<E, O>, prioMult: Double) : super(prioMult) {
+		this.task = task
+		results = HashMap()
+		params_list = LinkedList()
+	}
+
+	private val paramsFromList: Pair<T, Array<out E>>?
+		get() {
+			if (params_list.size > 0) synchronized(params_list) {
+				synchronized(lock) { active_tasks++ }
+				return params_list.removeAt(0)
+			} else return null
 		}
-		else return null;
+
+	private fun putResult(key: T, res: O) {
+		synchronized(lock) { active_tasks-- }
+		results[key] = res
 	}
 
-	private void putResult(T key, O res) {
-		synchronized (lock) {
-			active_tasks--;
+	override fun hasTask(): Boolean {
+		return params_list.size > 0
+	}
+
+	fun getResults(): Map<T, O> {
+		while (params_list.size > 0 || active_tasks != 0) try {
+			Thread.sleep(2)
+		} catch (e: InterruptedException) {
+			e.printStackTrace()
 		}
-		results.put(key, res);
+		return results
 	}
 
-	@Override
-	protected boolean hasTask() {
-		return params_list.size()>0;
-	}
-
-	public Map<T, O> getResults() {
-
-		while (params_list.size() > 0 || active_tasks != 0) try {
-			Thread.sleep(2);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
-		return results;
-	}
-
-	@Override
-	public ThrowingConsumer<TaskHandler> getTask() { return t->{
-		Entry<T,E[]> entry=getParamsFromList();
-		Task<E,O> ta=task;
-		O res=ta.run(entry.getValue());
-		putResult(entry.getKey(), res);
-	}; }
-
-	@SuppressWarnings("unchecked")
-	public void pushParams(T key, E... e) {
-		synchronized (this.params_list) {
-			this.params_list.add(Map.entry(key, e));
+	public override fun getTask(): ThrowingConsumer<TaskHandler> {
+		return ThrowingConsumer {
+			val entry = paramsFromList
+			val ta = task
+			val res = ta.run(entry!!.second)
+			putResult(entry.first, res)
 		}
 	}
 
+	fun pushParams(key: T, vararg e: E) {
+		synchronized(params_list) { params_list.add(key to e) }
+	}
 }
