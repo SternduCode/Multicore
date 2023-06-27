@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.stream.Stream
 
 
-class MultiCore private constructor() {
+object MultiCore {
 	/**
 	 * The Class TaskHandler.
 	 */
@@ -83,7 +83,7 @@ class MultiCore private constructor() {
 	init {
 		r = Runnable {
 			while (true) {
-				val (key, data2) = multiCore.task ?: break
+				val (key, data2) = this.task ?: break
 				if (key.hasTask()) {
 					val st = System.currentTimeMillis()
 					try {
@@ -135,80 +135,75 @@ class MultiCore private constructor() {
 			}, ThrowingConsumer {  })
 		}
 
-	companion object {
 
-		private var multiCore: MultiCore = MultiCore()
+	private fun checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded(): Int {
+		val sum = amountOfAvailableTasks
+		if (sum > 0) synchronized(this.simThreadsLock) {
+			setSimultaneousThreads(getSimultaneousThreads(), sum)
+		} else if (activeThreadsCount == 0) setSimultaneousThreads(getSimultaneousThreads(), 1)
+		return sum
+	}
 
-		private fun checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded(): Int {
-			val sum = amountOfAvailableTasks
-			if (sum > 0) synchronized(multiCore.simThreadsLock) {
-				setSimultaneousThreads(getSimultaneousThreads(), sum)
-			} else if (activeThreadsCount == 0) setSimultaneousThreads(getSimultaneousThreads(), 1)
-			return sum
+	private val activeThreadsCount: Int
+		get() = Stream.of(*this.threads).filter { obj: Thread? -> obj != null && obj.isAlive }
+			.count().toInt()
+
+	private fun reSort() {
+		synchronized(this.taskHandler) {
+			this.taskHandler.sortWith { d1: TaskHandler, d2: TaskHandler ->
+				(d2.lastAverageTime * d2.prioMult).compareTo(d1.lastAverageTime * d1.prioMult)
+			}
 		}
+	}
 
-		private val activeThreadsCount: Int
-			get() = Stream.of(*multiCore.threads).filter { obj: Thread? -> obj != null && obj.isAlive }
-				.count().toInt()
+	fun addTaskHandler(taskHandler: TaskHandler) {
+		synchronized(this.taskHandler) {
+			this.taskHandler.add(taskHandler)
+			reSort()
+		}
+		checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded()
+	}
 
-		private fun reSort() {
-			synchronized(multiCore.taskHandler) {
-				multiCore.taskHandler.sortWith { d1: TaskHandler, d2: TaskHandler ->
-					(d2.lastAverageTime * d2.prioMult).compareTo(d1.lastAverageTime * d1.prioMult)
-				}
+	fun close() {
+		this.ab.set(true)
+	}
+
+	val amountOfAvailableTasks: Int
+		get() {
+			synchronized(this.taskHandler) {
+				return this.taskHandler.parallelStream()
+					.mapToInt { t: TaskHandler -> if (t.hasTask()) 1 else 0 }
+					.sum()
 			}
 		}
 
-		fun addTaskHandler(taskHandler: TaskHandler) {
-			synchronized(multiCore.taskHandler) {
-				multiCore.taskHandler.add(taskHandler)
-				reSort()
-			}
-			checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded()
+	fun getSimultaneousThreads(): Int {
+		return this.simultaneousThreads
+	}
+
+	fun removeTaskHandler(taskHandler: TaskHandler): Boolean {
+		synchronized(this.taskHandler) {
+			val b = this.taskHandler.remove(taskHandler)
+			reSort()
+			return b
 		}
+	}
 
-		fun close() {
-			multiCore.ab.set(true)
-		}
-
-		val amountOfAvailableTasks: Int
-			get() {
-				synchronized(multiCore.taskHandler) {
-					return multiCore.taskHandler.parallelStream()
-						.mapToInt { t: TaskHandler -> if (t.hasTask()) 1 else 0 }
-						.sum()
-				}
-			}
-
-		fun getSimultaneousThreads(): Int {
-			return multiCore.simultaneousThreads
-		}
-
-		fun removeTaskHandler(taskHandler: TaskHandler): Boolean {
-			synchronized(multiCore.taskHandler) {
-				val b = multiCore.taskHandler.remove(taskHandler)
-				reSort()
-				return b
-			}
-		}
-
-		fun setSimultaneousThreads(amount: Int, vararg data: Int) {
-			synchronized(multiCore.simThreadsLock) {
-				multiCore.simultaneousThreads = multiCore.threads.size.coerceAtMost(amount)
-				for (i in multiCore.threads.indices) if (
-					Thread.State.TERMINATED == multiCore.threads[i]!!.state
-				) multiCore.threads[i] = Thread(multiCore.r, "MultiCore-Worker=$i")
-				val temp =
-					multiCore.simultaneousThreads.coerceAtLeast(if (data.isNotEmpty()) data[0] else multiCore.simultaneousThreads)
-				if (activeThreadsCount < temp) {
-					var activate = temp - activeThreadsCount
-					for (th in multiCore.threads) {
-						if (!th!!.isAlive) {
-							th.start()
-							activate--
-						}
-						if (activate == 0) break
+	fun setSimultaneousThreads(amount: Int, vararg data: Int) {
+		synchronized(this.simThreadsLock) {
+			this.simultaneousThreads = this.threads.size.coerceAtMost(amount)
+			for (i in this.threads.indices) if (
+				Thread.State.TERMINATED == this.threads[i]!!.state
+				) this.threads[i] = Thread(this.r, "MultiCore-Worker=$i")
+			val temp = this.simultaneousThreads.coerceAtLeast(if (data.isNotEmpty()) data[0] else this.simultaneousThreads)
+			if (activeThreadsCount < temp) {
+				var activate = temp - activeThreadsCount
+				for (th in this.threads) {
+					if (!th!!.isAlive) {
+						th.start()
+						activate--
 					}
+					if (activate == 0) break
 				}
 			}
 		}
