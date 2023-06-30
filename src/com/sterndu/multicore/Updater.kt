@@ -8,10 +8,6 @@ import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.collections.ArrayList
 
-// TODO: Auto-generated Javadoc
-/**
- * The Class Updater.
- */
 class Updater private constructor() : TaskHandler() {
 	/**
 	 * The  Information.
@@ -104,7 +100,7 @@ class Updater private constructor() : TaskHandler() {
 	 * @return true, if successful
 	 */
 	override fun hasTask(): Boolean {
-		return getInstance().l.size > 0
+		return getInstance().l.isNotEmpty()
 	}
 
 	/**
@@ -117,10 +113,10 @@ class Updater private constructor() : TaskHandler() {
 	fun <R> add(r: R, key: Any) {
 		try {
 			val caller = Class.forName(Thread.currentThread().stackTrace[2].className)
-			if (r is ThrowingRunnable) {
-				add(key, Information(clazz = caller, tr = r))
-			} else if (r is Runnable) {
-				add(key, Information(clazz = caller, tr = r::run))
+			when (r) {
+				is ThrowingRunnable -> add(key, Information(clazz = caller, tr = r))
+				is Runnable -> add(key, Information(clazz = caller, tr = r::run))
+				else -> throw NotImplementedError()
 			}
 		} catch (e: ClassNotFoundException) {
 			e.printStackTrace()
@@ -138,10 +134,10 @@ class Updater private constructor() : TaskHandler() {
 	fun <R> add(r: R, key: Any, millis: Long) {
 		try {
 			val caller = Class.forName(Thread.currentThread().stackTrace[2].className)
-			if (r is ThrowingRunnable) {
-				add(key, Information(millis, clazz = caller, tr = r))
-			} else if (r is Runnable) {
-				add(key, Information(millis, clazz = caller, tr = r::run))
+			when (r) {
+				is ThrowingRunnable -> add(key, Information(millis, clazz = caller, tr = r))
+				is Runnable -> add(key, Information(millis, clazz = caller, tr = r::run))
+				else -> throw NotImplementedError()
 			}
 		} catch (e: ClassNotFoundException) {
 			e.printStackTrace()
@@ -159,10 +155,7 @@ class Updater private constructor() : TaskHandler() {
 		return try {
 			val caller = Class.forName(Thread.currentThread().stackTrace[2].className)
 			val i = l[key]
-			if (i == null || i.clazz != caller) false else l.replace(
-				key,
-				Information(millis, l[key]!!.times, caller, l[key]!!.tr)
-			) != null
+			(i != null && i.clazz == caller) && l.replace(key, Information(millis, i.times, caller, i.tr) ) != null
 		} catch (e: ClassNotFoundException) {
 			e.printStackTrace()
 			false
@@ -179,7 +172,7 @@ class Updater private constructor() : TaskHandler() {
 		return try {
 			val caller = Class.forName(Thread.currentThread().stackTrace[2].className)
 			val i = l[key]
-			if (i == null || i.clazz != caller) 0.0 else l[key]!!.avgFreq()
+			if (i == null || i.clazz != caller) 0.0 else i.avgFreq()
 		} catch (e: ClassNotFoundException) {
 			e.printStackTrace()
 			0.0
@@ -199,7 +192,7 @@ class Updater private constructor() : TaskHandler() {
 		return try {
 			val caller = Class.forName(Thread.currentThread().stackTrace[2].className)
 			val i = l[key]
-			if (i == null || i.clazz != caller) false else l.remove(key) != null
+			(i != null && i.clazz == caller) && l.remove(key) != null
 		} catch (e: ClassNotFoundException) {
 			e.printStackTrace()
 			false
