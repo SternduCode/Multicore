@@ -114,25 +114,22 @@ object MultiCore {
 	@get:Synchronized
 	private val task: Map.Entry<TaskHandler, ThrowingConsumer<TaskHandler>>?
 		get() {
-			if (checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded() > 0) {
+			return if (checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded() > 0) {
 				if (count == taskHandler.size - 1) count = 0 else count++
 				val handler = taskHandler[count]
-				if (handler.hasTask()) return java.util.Map.entry(handler, handler.getTask()!!)
-			} else if (ab.get() or (activeThreadsCount > 1)) return null
-			try {
-				Thread.sleep(2)
-			} catch (e: InterruptedException) {
-				e.printStackTrace()
-				return null
-			}
-			return java.util.Map.entry<TaskHandler, ThrowingConsumer<TaskHandler>>(object : TaskHandler() {
-
-				override fun getTask(): ThrowingConsumer<TaskHandler> = ThrowingConsumer {  }
-
-				override fun hasTask(): Boolean {
-					return false
+				if (handler.hasTask()) java.util.Map.entry(handler, handler.getTask()!!)
+				else java.util.Map.entry<TaskHandler, ThrowingConsumer<TaskHandler>>(NullTaskHandler, NullTaskHandler.getTask())
+			} else if (ab.get() or (activeThreadsCount > 1)) {
+				null
+			} else {
+				try {
+					Thread.sleep(2)
+				} catch (e: InterruptedException) {
+					e.printStackTrace()
+					return null
 				}
-			}, ThrowingConsumer {  })
+				java.util.Map.entry<TaskHandler, ThrowingConsumer<TaskHandler>>(NullTaskHandler, NullTaskHandler.getTask())
+			}
 		}
 
 
