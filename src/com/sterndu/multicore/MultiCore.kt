@@ -1,6 +1,7 @@
 @file:JvmName("MultiCore")
 package com.sterndu.multicore
 
+import com.sterndu.util.Entry
 import com.sterndu.util.interfaces.ThrowingConsumer
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledThreadPoolExecutor
@@ -84,18 +85,16 @@ object MultiCore {
 		r = Runnable {
 			while (true) {
 				val (key, data2) = this.task ?: break
-				if (key.hasTask()) {
-					val st = System.currentTimeMillis()
-					try {
-						data2.accept(key)
-						var et = System.currentTimeMillis()
-						et -= st
-						key.addTime(et)
-						key.averageTime
-					} catch (e: Exception) {
-						e.printStackTrace()
-					}
-				} else break
+				val st = System.currentTimeMillis()
+				try {
+					data2.accept(key)
+					var et = System.currentTimeMillis()
+					et -= st
+					key.addTime(et)
+					key.averageTime
+				} catch (e: Exception) {
+					e.printStackTrace()
+				}
 				try {
 					Thread.sleep(1)
 				} catch (e: InterruptedException) {
@@ -112,13 +111,13 @@ object MultiCore {
 	}
 
 	@get:Synchronized
-	private val task: Map.Entry<TaskHandler, ThrowingConsumer<TaskHandler>>?
+	private val task: Entry<TaskHandler, ThrowingConsumer<TaskHandler>>?
 		get() {
 			return if (checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded() > 0) {
 				if (count == taskHandler.size - 1) count = 0 else count++
 				val handler = taskHandler[count]
-				if (handler.hasTask()) java.util.Map.entry(handler, handler.getTask()!!)
-				else java.util.Map.entry<TaskHandler, ThrowingConsumer<TaskHandler>>(NullTaskHandler, NullTaskHandler.getTask())
+				if (handler.hasTask()) Entry(handler, handler.getTask()!!)
+				else Entry(NullTaskHandler, NullTaskHandler.getTask())
 			} else if (ab.get() or (activeThreadsCount > 1)) {
 				null
 			} else {
@@ -128,16 +127,16 @@ object MultiCore {
 					e.printStackTrace()
 					return null
 				}
-				java.util.Map.entry<TaskHandler, ThrowingConsumer<TaskHandler>>(NullTaskHandler, NullTaskHandler.getTask())
+				Entry(NullTaskHandler, NullTaskHandler.getTask())
 			}
 		}
 
 
 	private fun checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded(): Int {
 		val sum = amountOfAvailableTasks
-		if (sum > 0) synchronized(this.simThreadsLock) {
-			setSimultaneousThreads(getSimultaneousThreads(), sum)
-		} else if (activeThreadsCount == 0) setSimultaneousThreads(getSimultaneousThreads(), 1)
+		synchronized(this.simThreadsLock) {
+			setSimultaneousThreads(getSimultaneousThreads(), sum.coerceAtLeast(1))
+		}
 		return sum
 	}
 
@@ -192,7 +191,7 @@ object MultiCore {
 			for (i in this.threads.indices) if (
 				Thread.State.TERMINATED == this.threads[i]!!.state
 				) this.threads[i] = Thread(this.r, "MultiCore-Worker=$i")
-			val temp = this.simultaneousThreads.coerceAtLeast(if (data.isNotEmpty()) data[0] else this.simultaneousThreads)
+			val temp = this.simultaneousThreads.coerceIn(if (data.isNotEmpty()) data[0] else this.simultaneousThreads, threads.size)
 			if (activeThreadsCount < temp) {
 				var activate = temp - activeThreadsCount
 				for (th in this.threads) {
