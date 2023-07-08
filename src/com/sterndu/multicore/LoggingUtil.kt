@@ -22,7 +22,7 @@ object LoggingUtil {
 
 		consoleHandler = ConsoleHandler()
 		consoleHandler.formatter = CustomFormatter()
-		fileHandler = FileHandler(String.format("logs/log-%td.%1\$tm.%1\$tY.log", ZonedDateTime.now()), true)
+		fileHandler = FileHandler(String.format("logs/log-%td.%1\$tm.%1\$tY-%%u.log", ZonedDateTime.now()), true)
 		fileHandler.level = Level.ALL
 		fileHandler.formatter = CustomFormatter()
 
@@ -65,11 +65,11 @@ object LoggingUtil {
 
 	@Throws(IOException::class)
 	fun getLogger(name: String): Logger {
+		if (!File("./logs").exists() && !File("./logs").mkdir()) throw IOException("Unable to create directory logs")
 		if (!initialized) {
 			init()
 		}
 
-		if (!File("./logs").exists() && !File("./logs").mkdir()) throw IOException("Unable to create directory logs")
 		synchronized(consoleHandler) {
 			val logger = Logger.getLogger(name)
 			logger.level = Level.ALL
