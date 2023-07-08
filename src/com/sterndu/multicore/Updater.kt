@@ -19,22 +19,6 @@ object Updater : TaskHandler() {
 		val tr: ThrowingRunnable
 	) {
 
-		override fun equals(other: Any?): Boolean {
-			if (other === this) return true
-			if (other == null || other.javaClass != this.javaClass) return false
-			val that = other as Information
-			return millis == that.millis && clazz == that.clazz && tr === that.tr
-		}
-
-		override fun hashCode(): Int {
-			return Objects.hash(millis, clazz, tr)
-		}
-
-		override fun toString(): String {
-			return "Information[" +
-					"millis=" + millis + ']'
-		}
-
 		/**
 		 * Avg freq.
 		 *
