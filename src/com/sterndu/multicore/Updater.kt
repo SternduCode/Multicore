@@ -8,7 +8,7 @@ import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.collections.ArrayList
 
-class Updater private constructor() : TaskHandler() {
+object Updater : TaskHandler() {
 	/**
 	 * The  Information.
 	 */
@@ -56,7 +56,6 @@ class Updater private constructor() : TaskHandler() {
 	 * Instantiates a new updater.
 	 */
 	init {
-		instance = this
 		MultiCore.addTaskHandler(this)
 	}
 
@@ -100,7 +99,7 @@ class Updater private constructor() : TaskHandler() {
 	 * @return true, if successful
 	 */
 	override fun hasTask(): Boolean {
-		return getInstance().l.isNotEmpty()
+		return l.isNotEmpty()
 	}
 
 	/**
@@ -211,22 +210,4 @@ class Updater private constructor() : TaskHandler() {
 		}
 	}
 
-	companion object {
-		/** The instance.  */
-		private lateinit var instance: Updater
-
-		init {
-			Updater()
-		}
-
-		/**
-		 * Gets the single instance of Updater.
-		 *
-		 * @return single instance of Updater
-		 */
-		@JvmStatic
-		fun getInstance(): Updater {
-			return instance
-		}
-	}
 }
