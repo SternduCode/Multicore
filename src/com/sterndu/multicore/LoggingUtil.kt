@@ -69,9 +69,7 @@ object LoggingUtil {
 			init()
 		}
 
-		if (!File("./logs").exists()) {
-			if (!File("./logs").mkdir()) throw IOException("Unable to create directory logs")
-		}
+		if (!File("./logs").exists() && !File("./logs").mkdir()) throw IOException("Unable to create directory logs")
 		synchronized(consoleHandler) {
 			val logger = Logger.getLogger(name)
 			logger.level = Level.ALL
