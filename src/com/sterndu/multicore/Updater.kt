@@ -4,9 +4,9 @@ package com.sterndu.multicore
 import com.sterndu.multicore.MultiCore.TaskHandler
 import com.sterndu.util.interfaces.ThrowingConsumer
 import com.sterndu.util.interfaces.ThrowingRunnable
-import java.util.*
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.collections.ArrayList
+import java.util.logging.Level
+import java.util.logging.Logger
 
 object Updater : TaskHandler() {
 	/**
@@ -29,6 +29,8 @@ object Updater : TaskHandler() {
 				times.mapIndexed { index, value -> if (index > 0) value - times[index - 1] else 0 }.drop(1).average()
 		}
 	}
+
+	private val logger: Logger = LoggingUtil.getLogger("Updater")
 
 	/** The interrupted.  */
 	private val interrupted: MutableList<Exception> = ArrayList()
@@ -102,7 +104,7 @@ object Updater : TaskHandler() {
 				else -> throw NotImplementedError()
 			}
 		} catch (e: ClassNotFoundException) {
-			e.printStackTrace()
+			logger.log(Level.WARNING, "Updater", e)
 		}
 	}
 
@@ -123,7 +125,7 @@ object Updater : TaskHandler() {
 				else -> throw NotImplementedError()
 			}
 		} catch (e: ClassNotFoundException) {
-			e.printStackTrace()
+			logger.log(Level.WARNING, "Updater", e)
 		}
 	}
 
@@ -140,7 +142,7 @@ object Updater : TaskHandler() {
 			val i = l[key]
 			(i != null && i.clazz == caller) && l.replace(key, Information(millis, i.times, caller, i.tr) ) != null
 		} catch (e: ClassNotFoundException) {
-			e.printStackTrace()
+			logger.log(Level.WARNING, "Updater", e)
 			false
 		}
 	}
@@ -157,7 +159,7 @@ object Updater : TaskHandler() {
 			val i = l[key]
 			if (i == null || i.clazz != caller) 0.0 else i.avgFreq()
 		} catch (e: ClassNotFoundException) {
-			e.printStackTrace()
+			logger.log(Level.WARNING, "Updater", e)
 			0.0
 		}
 	}
@@ -175,9 +177,10 @@ object Updater : TaskHandler() {
 		return try {
 			val caller = Class.forName(Thread.currentThread().stackTrace[2].className)
 			val i = l[key]
+			logger.fine("$key $caller $i")
 			(i != null && i.clazz == caller) && l.remove(key) != null
 		} catch (e: ClassNotFoundException) {
-			e.printStackTrace()
+			logger.log(Level.WARNING, "Updater", e)
 			false
 		}
 	}
@@ -190,7 +193,7 @@ object Updater : TaskHandler() {
 			val caller = Class.forName(Thread.currentThread().stackTrace[2].className)
 			l.entries.removeIf { (_, value): Map.Entry<Any, Information> -> value.clazz == caller }
 		} catch (e: ClassNotFoundException) {
-			e.printStackTrace()
+			logger.log(Level.WARNING, "Updater", e)
 		}
 	}
 
