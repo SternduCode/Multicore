@@ -197,4 +197,8 @@ object Updater : TaskHandler() {
 		}
 	}
 
+	fun printAll(logger: Logger) {
+		this.l.forEach { (key, value) -> logger.fine("Print All: $key $value")}
+	}
+
 }
