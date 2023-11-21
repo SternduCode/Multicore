@@ -68,16 +68,20 @@ object LoggingUtil {
 	@Throws(IOException::class)
 	fun getLogger(name: String): Logger {
 		if (!File("./logs").exists() && !File("./logs").mkdir()) throw IOException("Unable to create directory logs")
-		if (!initialized) {
-			init()
+		synchronized(this) {
+			if (!initialized) {
+				init()
+			}
 		}
 
 		synchronized(consoleHandler) {
 			val logger = Logger.getLogger(name)
 			logger.level = Level.ALL
 			logger.useParentHandlers = false
-			logger.addHandler(consoleHandler)
-			logger.addHandler(fileHandler)
+			if (!logger.handlers.contains(consoleHandler))
+				logger.addHandler(consoleHandler)
+			if (!logger.handlers.contains(fileHandler))
+				logger.addHandler(fileHandler)
 
 			return logger
 		}
