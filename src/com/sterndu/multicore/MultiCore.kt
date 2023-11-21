@@ -58,7 +58,7 @@ object MultiCore {
 	}
 
 	/** The ses.  */
-	private val ses = Executors.newScheduledThreadPool(0) as ScheduledThreadPoolExecutor
+	private val ses = Executors.newScheduledThreadPool(1) as ScheduledThreadPoolExecutor
 
 	/** The sim threads lock.  */
 	private val simThreadsLock = Any()
