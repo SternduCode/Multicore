@@ -97,7 +97,7 @@ object Updater : TaskHandler() {
 	</R> */
 	fun <R> add(r: R, key: Any) {
 		try {
-			val caller = Class.forName(Thread.currentThread().stackTrace[2].className)
+			val caller = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE).callerClass
 			when (r) {
 				is ThrowingRunnable -> add(key, Information(clazz = caller, tr = r))
 				is Runnable -> add(key, Information(clazz = caller, tr = r::run))
@@ -118,7 +118,7 @@ object Updater : TaskHandler() {
 	</R> */
 	fun <R> add(r: R, key: Any, millis: Long) {
 		try {
-			val caller = Class.forName(Thread.currentThread().stackTrace[2].className)
+			val caller = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE).callerClass
 			when (r) {
 				is ThrowingRunnable -> add(key, Information(millis, clazz = caller, tr = r))
 				is Runnable -> add(key, Information(millis, clazz = caller, tr = r::run))
@@ -138,7 +138,7 @@ object Updater : TaskHandler() {
 	 */
 	fun changeTargetFreq(key: Any, millis: Long): Boolean {
 		return try {
-			val caller = Class.forName(Thread.currentThread().stackTrace[2].className)
+			val caller = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE).callerClass
 			val i = l[key]
 			(i != null && i.clazz == caller) && l.replace(key, Information(millis, i.times, caller, i.tr) ) != null
 		} catch (e: ClassNotFoundException) {
@@ -155,7 +155,7 @@ object Updater : TaskHandler() {
 	 */
 	fun getAvgExecFreq(key: Any): Double {
 		return try {
-			val caller = Class.forName(Thread.currentThread().stackTrace[2].className)
+			val caller = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE).callerClass
 			val i = l[key]
 			if (i == null || i.clazz != caller) 0.0 else i.avgFreq()
 		} catch (e: ClassNotFoundException) {
@@ -175,7 +175,7 @@ object Updater : TaskHandler() {
 	 */
 	fun remove(key: Any): Boolean {
 		return try {
-			val caller = Class.forName(Thread.currentThread().stackTrace[2].className)
+			val caller = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE).callerClass
 			val i = l[key]
 			logger.fine("$key $caller $i")
 			(i != null && i.clazz == caller) && l.remove(key) != null
@@ -190,7 +190,7 @@ object Updater : TaskHandler() {
 	 */
 	fun removeAll() {
 		try {
-			val caller = Class.forName(Thread.currentThread().stackTrace[2].className)
+			val caller = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE).callerClass
 			l.entries.removeIf { (_, value): Map.Entry<Any, Information> -> value.clazz == caller }
 		} catch (e: ClassNotFoundException) {
 			logger.log(Level.WARNING, "Updater", e)
