@@ -3,11 +3,10 @@ package com.sterndu.multicore
 
 import com.sterndu.util.Entry
 import com.sterndu.util.interfaces.ThrowingConsumer
-import java.util.concurrent.Executors
-import java.util.concurrent.ScheduledThreadPoolExecutor
+import com.sterndu.util.interfaces.ThrowingRunnable
+import java.util.concurrent.*
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.stream.Stream
-
+import java.util.logging.Level
 
 object MultiCore {
 	/**
@@ -60,89 +59,101 @@ object MultiCore {
 	/** The ses.  */
 	private val ses = Executors.newScheduledThreadPool(1) as ScheduledThreadPoolExecutor
 
-	/** The sim threads lock.  */
-	private val simThreadsLock = Any()
+	private val scheduledTasks: MutableMap<Any, ScheduledFuture<*>> = HashMap()
 
-	/** The simultaneous threads.  */
-	private var simultaneousThreads = 0
-
-	/** The ab.  */
-	private val ab: AtomicBoolean
+	private val closeRequested = AtomicBoolean(false)
 
 	/** The count.  */
 	private var count = 0
 
 	/** The task handler.  */
-	private val taskHandler: MutableList<TaskHandler>
+	private val taskHandler: MutableList<TaskHandler> = ArrayList()
 
-	/** The threads.  */
-	private val threads: Array<Thread?>
-
-	/** The r.  */
-	private val r: Runnable
+	private val r: (TaskHandler, ThrowingConsumer<TaskHandler>) -> Unit = { key, data ->
+		val st = System.currentTimeMillis()
+		try {
+			data.accept(key)
+			var et = System.currentTimeMillis()
+			et -= st
+			key.addTime(et)
+			key.averageTime
+		} catch (e: Exception) {
+			e.printStackTrace()
+		}
+	}
 
 	init {
-		r = Runnable {
-			while (true) {
-				val (key, data2) = this.task ?: break
-				val st = System.currentTimeMillis()
-				try {
-					data2.accept(key)
-					var et = System.currentTimeMillis()
-					et -= st
-					key.addTime(et)
-					key.averageTime
-				} catch (e: Exception) {
-					e.printStackTrace()
-				}
-				try {
-					Thread.sleep(1)
-				} catch (e: InterruptedException) {
-					e.printStackTrace()
-				}
-			}
-		}
 		ses.maximumPoolSize = Runtime.getRuntime().availableProcessors()
-		ab = AtomicBoolean(false)
-		taskHandler = ArrayList()
-		threads = arrayOfNulls(Runtime.getRuntime().availableProcessors())
-		for (i in threads.indices) threads[i] = Thread(r, "MultiCore-Worker=$i")
+		ses.scheduleWithFixedDelay({
+			// DEBUG Updater.logger.info("Doing House keeping")
+			try {
+				for (taskHandler in taskHandler) {
+					when (taskHandler) {
+						is Updater -> {
+							taskHandler.taskInformationMap
+								.map(Map.Entry<Any, Updater.Information>::value)
+								.filter { it.tr !in scheduledTasks }
+								.forEach { information ->
+									val future = ses.scheduleWithFixedDelay(
+										{ r(taskHandler) { taskHandler.r(information) } },
+										0,
+										information.millis.coerceAtLeast(1),
+										TimeUnit.MILLISECONDS
+									)
+
+									scheduledTasks[information.tr] = future
+								}
+							cleanupNonExistentTasks(taskHandler)
+						}
+
+						else -> {
+							if (taskHandler.hasTask()) {
+								val task = taskHandler.getTask()
+								if (task != null) {
+									val future = ses.schedule({ r(taskHandler, task) }, 0, TimeUnit.MILLISECONDS)
+
+									scheduledTasks[task] = future
+								}
+							}
+						}
+					}
+				}
+				if (scheduledTasks.entries.removeIf { (_, future) ->
+					future.isDone || future.isCancelled
+				}) {
+					// DEBUG Updater.logger.info("Removed a task")
+				}
+			} catch (e: Exception) {
+				Updater.logger.log(Level.WARNING, "MultiCore ${e.javaClass.simpleName} ${e.message} ${e.cause}", e)
+			}
+		}, 0, 1, TimeUnit.MILLISECONDS)
+		
 		Runtime.getRuntime().addShutdownHook(Thread { close() })
 	}
 
-	@get:Synchronized
-	private val task: Entry<TaskHandler, ThrowingConsumer<TaskHandler>>?
-		get() {
-			return if (checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded() > 0) {
-				if (count == taskHandler.size - 1) count = 0 else count++
-				val handler = taskHandler[count]
-				if (handler.hasTask()) Entry(handler, handler.getTask()!!)
-				else Entry(NullTaskHandler, NullTaskHandler.getTask())
-			} else if (ab.get() or (activeThreadsCount > 1)) {
-				null
-			} else {
-				try {
-					Thread.sleep(2)
-				} catch (e: InterruptedException) {
-					e.printStackTrace()
-					return null
-				}
-				Entry(NullTaskHandler, NullTaskHandler.getTask())
+	private fun cleanupNonExistentTasks(taskHandler: Updater) {
+		scheduledTasks
+			.map(Map.Entry<Any, ScheduledFuture<*>>::key)
+			.filterIsInstance<ThrowingRunnable>()
+			.filterNot {
+				taskHandler.taskInformationMap
+					.map(Map.Entry<Any, Updater.Information>::value)
+					.map(Updater.Information::tr)
+					.any(it::equals)
 			}
-		}
-
+			.forEach {
+				// DEBUG Updater.logger.info("Cleaned a task")
+				scheduledTasks[it]!!.cancel(false)
+				scheduledTasks.remove(it)
+			}
+	}
 
 	private fun checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded(): Int {
-		val sum = amountOfAvailableTasks
-		synchronized(this.simThreadsLock) {
-			setSimultaneousThreads(getSimultaneousThreads(), sum.coerceAtLeast(1))
-		}
-		return sum
+		return amountOfAvailableTasks
 	}
 
 	private val activeThreadsCount: Int
-		get() = Stream.of(*this.threads).filter { obj: Thread? -> obj != null && obj.isAlive }
-			.count().toInt()
+		get() = ses.activeCount
 
 	private fun reSort() {
 		synchronized(this.taskHandler) {
@@ -161,7 +172,7 @@ object MultiCore {
 	}
 
 	fun close() {
-		this.ab.set(true)
+		ses.shutdown()
 	}
 
 	val amountOfAvailableTasks: Int
@@ -174,7 +185,7 @@ object MultiCore {
 		}
 
 	fun getSimultaneousThreads(): Int {
-		return this.simultaneousThreads
+		return ses.maximumPoolSize
 	}
 
 	fun removeTaskHandler(taskHandler: TaskHandler): Boolean {
@@ -185,23 +196,8 @@ object MultiCore {
 		}
 	}
 
-	fun setSimultaneousThreads(amount: Int, vararg data: Int) {
-		synchronized(this.simThreadsLock) {
-			this.simultaneousThreads = this.threads.size.coerceAtMost(amount)
-			for (i in this.threads.indices) if (
-				Thread.State.TERMINATED == this.threads[i]!!.state
-				) this.threads[i] = Thread(this.r, "MultiCore-Worker=$i")
-			val temp = this.simultaneousThreads.coerceIn(if (data.isNotEmpty()) data[0] else this.simultaneousThreads, threads.size)
-			if (activeThreadsCount < temp) {
-				var activate = temp - activeThreadsCount
-				for (th in this.threads) {
-					if (!th!!.isAlive) {
-						th.start()
-						activate--
-					}
-					if (activate == 0) break
-				}
-			}
-		}
+	@Synchronized
+	fun setSimultaneousThreads(amount: Int) {
+		ses.maximumPoolSize = amount
 	}
 }

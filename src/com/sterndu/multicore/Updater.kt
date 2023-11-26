@@ -10,33 +10,43 @@ import java.util.logging.Logger
 
 object Updater : TaskHandler() {
 	/**
-	 * The  Information.
+	 * Holds data about an updater task
 	 */
-	private data class Information(
+	internal data class Information(
 		val millis: Long = 0L,
 		val times: MutableList<Long> = ArrayList(),
 		val clazz: Class<*>,
 		val tr: ThrowingRunnable
 	) {
-
-		/**
-		 * Avg freq.
-		 *
-		 * @return the double
-		 */
 		fun avgFreq(): Double {
 			return if (times.size < 2) Double.POSITIVE_INFINITY else
 				times.mapIndexed { index, value -> if (index > 0) value - times[index - 1] else 0 }.drop(1).average()
 		}
 	}
 
-	private val logger: Logger = LoggingUtil.getLogger("Updater")
+	internal val logger: Logger = LoggingUtil.getLogger("Updater")
 
-	/** The interrupted.  */
 	private val interrupted: MutableList<Exception> = ArrayList()
 
-	/** The l.  */
-	private val l = ConcurrentHashMap<Any, Information>()
+	internal val taskInformationMap = ConcurrentHashMap<Any, Information>()
+
+	internal val r: (Information) -> Unit = { information ->
+		try {
+			// DEBUG logger.info("Running task ${taskInformationMap.entries.first { it.value === information }.key}")
+			val times = information.times
+			val lastRun = if (times.isEmpty()) 0 else times.last()
+			val curr = System.currentTimeMillis()
+			if (curr - lastRun >= information.millis) {
+				information.tr.run()
+				if (times.size >= 20) times.removeAt(0)
+				times.add(curr)
+			}
+		} catch (e: Exception) {
+			synchronized(interrupted) {
+				interrupted.add(e)
+			}
+		}
+	}
 
 	/**
 	 * Instantiates a new updater.
@@ -52,7 +62,7 @@ object Updater : TaskHandler() {
 	 * @param i the i
 	 */
 	private fun add(key: Any, i: Information) {
-		l[key] = i
+		taskInformationMap[key] = i
 	}
 
 	/**
@@ -61,22 +71,7 @@ object Updater : TaskHandler() {
 	 * @return the task
 	 */
 	override fun getTask(): ThrowingConsumer<TaskHandler> {
-		return ThrowingConsumer {
-			synchronized(this) {
-				for ((_, i) in l) try {
-					val times = i.times
-					val lastRun = if (times.isEmpty()) 0 else times.last()
-					val curr = System.currentTimeMillis()
-					if (curr - lastRun >= i.millis) {
-						i.tr.run()
-						if (times.size >= 20) times.removeAt(0)
-						times.add(curr)
-					}
-				} catch (e: Exception) {
-					interrupted.add(e)
-				}
-			}
-		}
+		return ThrowingConsumer {  }
 	}
 
 	/**
@@ -85,7 +80,7 @@ object Updater : TaskHandler() {
 	 * @return true, if successful
 	 */
 	override fun hasTask(): Boolean {
-		return l.isNotEmpty()
+		return taskInformationMap.isNotEmpty()
 	}
 
 	/**
@@ -139,8 +134,8 @@ object Updater : TaskHandler() {
 	fun changeTargetFreq(key: Any, millis: Long): Boolean {
 		return try {
 			val caller = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE).callerClass
-			val i = l[key]
-			(i != null && i.clazz == caller) && l.replace(key, Information(millis, i.times, caller, i.tr) ) != null
+			val i = taskInformationMap[key]
+			(i != null && i.clazz == caller) && taskInformationMap.replace(key, Information(millis, i.times, caller, i.tr) ) != null
 		} catch (e: ClassNotFoundException) {
 			logger.log(Level.WARNING, "Updater", e)
 			false
@@ -156,7 +151,7 @@ object Updater : TaskHandler() {
 	fun getAvgExecFreq(key: Any): Double {
 		return try {
 			val caller = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE).callerClass
-			val i = l[key]
+			val i = taskInformationMap[key]
 			if (i == null || i.clazz != caller) 0.0 else i.avgFreq()
 		} catch (e: ClassNotFoundException) {
 			logger.log(Level.WARNING, "Updater", e)
@@ -176,9 +171,9 @@ object Updater : TaskHandler() {
 	fun remove(key: Any): Boolean {
 		return try {
 			val caller = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE).callerClass
-			val i = l[key]
+			val i = taskInformationMap[key]
 			logger.fine("$key $caller $i")
-			(i != null && i.clazz == caller) && l.remove(key) != null
+			(i != null && i.clazz == caller) && taskInformationMap.remove(key) != null
 		} catch (e: ClassNotFoundException) {
 			logger.log(Level.WARNING, "Updater", e)
 			false
@@ -191,14 +186,14 @@ object Updater : TaskHandler() {
 	fun removeAll() {
 		try {
 			val caller = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE).callerClass
-			l.entries.removeIf { (_, value): Map.Entry<Any, Information> -> value.clazz == caller }
+			taskInformationMap.entries.removeIf { (_, value): Map.Entry<Any, Information> -> value.clazz == caller }
 		} catch (e: ClassNotFoundException) {
 			logger.log(Level.WARNING, "Updater", e)
 		}
 	}
 
 	fun printAll(logger: Logger) {
-		this.l.forEach { (key, value) -> logger.fine("Print All: $key $value")}
+		this.taskInformationMap.forEach { (key, value) -> logger.fine("Print All: $key $value")}
 	}
 
 }
