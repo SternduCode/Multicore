@@ -57,7 +57,7 @@ object MultiCore {
 	}
 
 	/** The ses.  */
-	private val ses = Executors.newScheduledThreadPool(1) as ScheduledThreadPoolExecutor
+	private val ses = Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors()) as ScheduledThreadPoolExecutor
 
 	private val scheduledTasks: MutableMap<Any, ScheduledFuture<*>> = HashMap()
 
@@ -188,6 +188,8 @@ object MultiCore {
 		return ses.maximumPoolSize
 	}
 
+	fun getActiveThreads() = ses.activeCount
+
 	fun removeTaskHandler(taskHandler: TaskHandler): Boolean {
 		synchronized(this.taskHandler) {
 			val b = this.taskHandler.remove(taskHandler)
@@ -199,5 +201,6 @@ object MultiCore {
 	@Synchronized
 	fun setSimultaneousThreads(amount: Int) {
 		ses.maximumPoolSize = amount
+		ses.corePoolSize = amount
 	}
 }
