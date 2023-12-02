@@ -1,7 +1,6 @@
 @file:JvmName("MultiCore")
 package com.sterndu.multicore
 
-import com.sterndu.util.Entry
 import com.sterndu.util.interfaces.ThrowingConsumer
 import com.sterndu.util.interfaces.ThrowingRunnable
 import java.util.concurrent.*
@@ -14,7 +13,7 @@ object MultiCore {
 	 */
 	abstract class TaskHandler {
 
-		var prioMult: Double
+		var priorityMultiplier: Double
 
 		var lastAverageTime: Double
 			protected set
@@ -26,13 +25,13 @@ object MultiCore {
 
 
 		protected constructor() {
-			prioMult = .1
+			priorityMultiplier = .1
 			lastAverageTime = .0
 			_times = ArrayList()
 		}
 
-		protected constructor(prioMult: Double) {
-			this.prioMult = prioMult
+		protected constructor(priorityMultiplier: Double) {
+			this.priorityMultiplier = priorityMultiplier
 			lastAverageTime = .0
 			_times = ArrayList()
 		}
@@ -158,7 +157,7 @@ object MultiCore {
 	private fun reSort() {
 		synchronized(this.taskHandler) {
 			this.taskHandler.sortWith { d1: TaskHandler, d2: TaskHandler ->
-				(d2.lastAverageTime * d2.prioMult).compareTo(d1.lastAverageTime * d1.prioMult)
+				(d2.lastAverageTime * d2.priorityMultiplier).compareTo(d1.lastAverageTime * d1.priorityMultiplier)
 			}
 		}
 	}

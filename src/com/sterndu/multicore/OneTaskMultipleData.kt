@@ -22,7 +22,7 @@ class OneTaskMultipleData<T, E, O> : TaskHandler {
 		params_list = LinkedList()
 	}
 
-	constructor(task: Task<E, O>, prioMult: Double) : super(prioMult) {
+	constructor(task: Task<E, O>, priorityMultiplier: Double) : super(priorityMultiplier) {
 		this.task = task
 		results = HashMap()
 		params_list = LinkedList()

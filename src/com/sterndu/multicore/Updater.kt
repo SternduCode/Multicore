@@ -56,8 +56,6 @@ object Updater : TaskHandler() {
 	}
 
 	/**
-	 * Adds the.
-	 *
 	 * @param key the key
 	 * @param i the i
 	 */
@@ -84,12 +82,12 @@ object Updater : TaskHandler() {
 	}
 
 	/**
-	 * Adds the.
+	 * Adds a task to be run periodically
 	 *
-	 * @param <R> the generic type
-	 * @param r the r
-	 * @param key the key
-	</R> */
+	 * @param R the type of the task, must be either ThrowingRunnable or Runnable
+	 * @param r the task to run
+	 * @param key the key of the task
+	 */
 	fun <R> add(r: R, key: Any) {
 		try {
 			val caller = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE).callerClass
@@ -104,13 +102,13 @@ object Updater : TaskHandler() {
 	}
 
 	/**
-	 * Adds the.
+	 * Adds a task to be run periodically after 'millis' milliseconds
 	 *
-	 * @param <R> the generic type
-	 * @param r the r
-	 * @param key the key
+	 * @param R the type of the task, must be either ThrowingRunnable or Runnable
+	 * @param r the task to run
+	 * @param key the key of the task
 	 * @param millis the millis
-	</R> */
+	 */
 	fun <R> add(r: R, key: Any, millis: Long) {
 		try {
 			val caller = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE).callerClass
@@ -163,9 +161,9 @@ object Updater : TaskHandler() {
 		get() = interrupted
 
 	/**
-	 * Removes the.
+	 * Removes the task corresponding to the given key
 	 *
-	 * @param key the key
+	 * @param key the key of the task to remove
 	 * @return true, if successful
 	 */
 	fun remove(key: Any): Boolean {
