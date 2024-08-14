@@ -28,18 +28,17 @@ object MultiCore {
 			var et = System.currentTimeMillis()
 			et -= st
 			key.addTime(et)
-			key.averageTime
 		} catch (e: Exception) {
 			e.printStackTrace()
 		}
 	}
 
 	init {
-		ses.maximumPoolSize = Runtime.getRuntime().availableProcessors()
+		ses.allowCoreThreadTimeOut(true)
 		ses.scheduleWithFixedDelay({
 			// DEBUG Updater.logger.info("Doing House keeping")
 			try {
-				for (taskHandler in taskHandler) {
+				for (taskHandler in taskHandlers) {
 					when (taskHandler) {
 						is Updater -> {
 							taskHandler.taskInformationMap
@@ -59,12 +58,9 @@ object MultiCore {
 						}
 
 						else -> {
-							if (taskHandler.hasTask()) {
-								val task = taskHandler.getTask()
-								if (task != null) {
-									val future = ses.schedule({ r(taskHandler, task) }, 0, TimeUnit.MILLISECONDS)
-
-									scheduledTasks[task] = future
+							while (taskHandler.hasTask()) {
+								taskHandler.getTask()?.let { task ->
+									scheduledTasks[task] = ses.schedule({ r(taskHandler, task) }, 0, TimeUnit.MILLISECONDS)
 								}
 							}
 						}
@@ -75,6 +71,7 @@ object MultiCore {
 				}) {
 					// DEBUG Updater.logger.info("Removed a task")
 				}
+
 			} catch (e: Exception) {
 				Updater.logger.log(Level.WARNING, "MultiCore ${e.javaClass.simpleName} ${e.message} ${e.cause}", e)
 			}
@@ -107,19 +104,8 @@ object MultiCore {
 	private val activeThreadsCount: Int
 		get() = ses.activeCount
 
-	private fun reSort() {
-		synchronized(this.taskHandler) {
-			this.taskHandler.sortWith { d1: TaskHandler, d2: TaskHandler ->
-				(d2.lastAverageTime * d2.priorityMultiplier).compareTo(d1.lastAverageTime * d1.priorityMultiplier)
-			}
-		}
-	}
-
 	fun addTaskHandler(taskHandler: TaskHandler) {
-		synchronized(this.taskHandler) {
-			this.taskHandler.add(taskHandler)
-			reSort()
-		}
+		this.taskHandlers.add(taskHandler)
 		checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded()
 	}
 
@@ -129,11 +115,9 @@ object MultiCore {
 
 	val amountOfAvailableTasks: Int
 		get() {
-			synchronized(this.taskHandler) {
-				return this.taskHandler.parallelStream()
-					.mapToInt { t: TaskHandler -> if (t.hasTask()) 1 else 0 }
-					.sum()
-			}
+			return this.taskHandlers.parallelStream()
+				.mapToInt { t: TaskHandler -> if (t.hasTask()) 1 else 0 }
+				.sum()
 		}
 
 	fun getSimultaneousThreads(): Int {
@@ -143,16 +127,12 @@ object MultiCore {
 	fun getActiveThreads() = ses.activeCount
 
 	fun removeTaskHandler(taskHandler: TaskHandler): Boolean {
-		synchronized(this.taskHandler) {
-			val b = this.taskHandler.remove(taskHandler)
-			reSort()
-			return b
-		}
+		val b = this.taskHandlers.remove(taskHandler)
+		return b
 	}
 
 	@Synchronized
 	fun setSimultaneousThreads(amount: Int) {
-		ses.maximumPoolSize = amount
 		ses.corePoolSize = amount
 	}
 }
