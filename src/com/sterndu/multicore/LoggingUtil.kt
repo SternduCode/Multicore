@@ -13,7 +13,18 @@ object LoggingUtil {
 	private const val secondsOfADay = 86400000L
 
 	private lateinit var consoleHandler: ConsoleHandler
-	private lateinit var fileHandler: FileHandler
+	private var fileHandler: FileHandler? = null
+
+	private var logToFile: Boolean = false
+
+	fun setLogToFile(): Boolean {
+		return if (!initialized) {
+			logToFile = true
+			true
+		} else {
+			false
+		}
+	}
 
 	private var initialized = false
 
@@ -22,31 +33,37 @@ object LoggingUtil {
 
 		consoleHandler = ConsoleHandler()
 		consoleHandler.formatter = CustomFormatterConsole()
-		fileHandler = FileHandler(String.format("logs/log-%tY.%1\$tm.%1\$td-%%u.log", ZonedDateTime.now()), true)
-		fileHandler.level = Level.FINER
-		fileHandler.formatter = CustomFormatterFile()
+		if (logToFile) {
+			fileHandler = FileHandler(String.format("logs/log-%tY.%1\$tm.%1\$td-%%u.log", ZonedDateTime.now()), true)
+				.apply {
+					level = Level.FINER
+					formatter = CustomFormatterFile()
+				}
+		}
 
 		var day = System.currentTimeMillis() - System.currentTimeMillis() % secondsOfADay
 
-		Updater.add(Runnable {
-			if ((System.currentTimeMillis() - System.currentTimeMillis() % secondsOfADay) > day) {
-				synchronized(consoleHandler) {
-					day = System.currentTimeMillis() - System.currentTimeMillis() % secondsOfADay
-					val newFileHandler = FileHandler(String.format("logs/log-%tY.%1\$tm.%1\$td-%%u.log", ZonedDateTime.now()), true)
-					newFileHandler.level = fileHandler.level
-					newFileHandler.formatter = CustomFormatterFile()
-					val logManager = LogManager.getLogManager()
-					for (name in logManager.loggerNames) {
-						val logger = logManager.getLogger(name)
-						logger.addHandler(newFileHandler)
-						logger.removeHandler(fileHandler)
+		if (logToFile) {
+			Updater.add(Runnable {
+				if ((System.currentTimeMillis() - System.currentTimeMillis() % secondsOfADay) > day) {
+					synchronized(consoleHandler) {
+						day = System.currentTimeMillis() - System.currentTimeMillis() % secondsOfADay
+						val newFileHandler = FileHandler(String.format("logs/log-%tY.%1\$tm.%1\$td-%%u.log", ZonedDateTime.now()), true)
+						newFileHandler.level = fileHandler!!.level
+						newFileHandler.formatter = CustomFormatterFile()
+						val logManager = LogManager.getLogManager()
+						for (name in logManager.loggerNames) {
+							val logger = logManager.getLogger(name)
+							logger.addHandler(newFileHandler)
+							logger.removeHandler(fileHandler!!)
+						}
+						fileHandler!!.flush()
+						fileHandler!!.close()
+						fileHandler = newFileHandler
 					}
-					fileHandler.flush()
-					fileHandler.close()
-					fileHandler = newFileHandler
 				}
-			}
-		}, "LoggerFileHandlerUpdater", 1000)
+			}, "LoggerFileHandlerUpdater", 1000)
+		}
 	}
 
 	@JvmStatic
@@ -67,10 +84,13 @@ object LoggingUtil {
 
 	@Throws(IOException::class)
 	fun getLogger(name: String): Logger {
-		if (!File("./logs").exists() && !File("./logs").mkdir()) throw IOException("Unable to create directory logs")
-		synchronized(this) {
-			if (!initialized) {
-				init()
+		if (logToFile && (!File("./logs").exists() && !File("./logs").mkdir())) throw IOException("Unable to create directory logs")
+
+		if (!initialized) {
+			synchronized(this) {
+				if (!initialized) {
+					init()
+				}
 			}
 		}
 
@@ -80,8 +100,10 @@ object LoggingUtil {
 			logger.useParentHandlers = false
 			if (!logger.handlers.contains(consoleHandler))
 				logger.addHandler(consoleHandler)
-			if (!logger.handlers.contains(fileHandler))
-				logger.addHandler(fileHandler)
+			if (logToFile) {
+				if (!logger.handlers.contains(fileHandler))
+					logger.addHandler(fileHandler)
+			}
 
 			return logger
 		}
