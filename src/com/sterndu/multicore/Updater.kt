@@ -8,12 +8,10 @@ import java.util.logging.Level
 import java.util.logging.Logger
 
 object Updater : TaskHandler() {
-	/**
-	 * Holds data about an updater task
-	 */
+
 	internal data class Information(
-		val millis: Long = 0L,
-		val times: MutableList<Long> = ArrayList(),
+		val millis: Long = 1L,
+		val times: MutableList<Long> = mutableListOf(0),
 		val clazz: Class<*>,
 		val tr: ThrowingRunnable
 	) {
@@ -27,7 +25,7 @@ object Updater : TaskHandler() {
 
 	private val interrupted: MutableList<Exception> = ArrayList()
 
-	internal val taskInformationMap = ConcurrentHashMap<Any, Information>()
+	internal val taskInformationMap: MutableMap<Any, Information> = ConcurrentHashMap<Any, Information>()
 
 	internal val r: (Information) -> Unit = { information ->
 		try {
@@ -47,35 +45,20 @@ object Updater : TaskHandler() {
 		}
 	}
 
-	/**
-	 * Instantiates a new updater.
-	 */
 	init {
+		priorityMultiplier = 0.01
+		logger = LoggingUtil.getLogger("Updater")
 		MultiCore.addTaskHandler(this)
 	}
 
-	/**
-	 * @param key the key
-	 * @param i the i
-	 */
 	private fun add(key: Any, i: Information) {
 		taskInformationMap[key] = i
 	}
 
-	/**
-	 * Gets the task.
-	 *
-	 * @return the task
-	 */
 	override fun getTask(): ThrowingConsumer<TaskHandler> {
 		return ThrowingConsumer {  }
 	}
 
-	/**
-	 * Checks for task.
-	 *
-	 * @return true, if successful
-	 */
 	override fun hasTask(): Boolean {
 		return taskInformationMap.isNotEmpty()
 	}
