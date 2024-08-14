@@ -1,7 +1,6 @@
 @file:JvmName("OneTaskMultipleData")
 package com.sterndu.multicore
 
-import com.sterndu.multicore.MultiCore.TaskHandler
 import com.sterndu.util.interfaces.ThrowingConsumer
 import java.util.*
 

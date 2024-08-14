@@ -1,7 +1,6 @@
 @file:JvmName("Updater")
 package com.sterndu.multicore
 
-import com.sterndu.multicore.MultiCore.TaskHandler
 import com.sterndu.util.interfaces.ThrowingConsumer
 import com.sterndu.util.interfaces.ThrowingRunnable
 import java.util.concurrent.ConcurrentHashMap
