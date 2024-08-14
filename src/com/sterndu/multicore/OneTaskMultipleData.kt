@@ -29,7 +29,7 @@ class OneTaskMultipleData<T, E, O> : TaskHandler {
 
 	private val paramsFromList: Pair<T, Array<out E>>?
 		get() {
-			if (params_list.size > 0) synchronized(params_list) {
+			if (params_list.isNotEmpty()) synchronized(params_list) {
 				synchronized(lock) { active_tasks++ }
 				return params_list.removeAt(0)
 			} else return null
@@ -41,11 +41,11 @@ class OneTaskMultipleData<T, E, O> : TaskHandler {
 	}
 
 	override fun hasTask(): Boolean {
-		return params_list.size > 0
+		return params_list.isNotEmpty()
 	}
 
 	fun getResults(): Map<T, O> {
-		while (params_list.size > 0 || active_tasks != 0) try {
+		while (params_list.isNotEmpty() || active_tasks != 0) try {
 			Thread.sleep(2)
 		} catch (e: InterruptedException) {
 			e.printStackTrace()
@@ -53,13 +53,13 @@ class OneTaskMultipleData<T, E, O> : TaskHandler {
 		return results
 	}
 
-	override fun getTask(): ThrowingConsumer<TaskHandler> {
-		return ThrowingConsumer {
-			val entry = paramsFromList
+	override fun getTask(): ThrowingConsumer<TaskHandler>? {
+		val entry = paramsFromList
+		return if (entry != null) ThrowingConsumer {
 			val ta = task
-			val res = ta.run(entry!!.second)
+			val res = ta.run(entry.second)
 			putResult(entry.first, res)
-		}
+		} else null
 	}
 
 	fun pushParams(key: T, vararg e: E) {
