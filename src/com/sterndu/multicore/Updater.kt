@@ -21,7 +21,7 @@ object Updater : TaskHandler() {
 		}
 	}
 
-	internal val logger: Logger = LoggingUtil.getLogger("Updater")
+
 	internal val logger: Logger
 
 	private val interrupted: MutableList<Exception> = ArrayList()
