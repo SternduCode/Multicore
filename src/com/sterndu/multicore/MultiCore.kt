@@ -8,65 +8,18 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Level
 
 object MultiCore {
-	/**
-	 * The Class TaskHandler.
-	 */
-	abstract class TaskHandler {
 
-		var priorityMultiplier: Double
+	private val ses = Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors(), Thread.ofVirtual().factory()) as ScheduledThreadPoolExecutor
 
-		var lastAverageTime: Double
-			protected set
-
-		private val _times: MutableList<Long>
-
-		val times: List<Long>
-			get() = _times.toList()
-
-
-		protected constructor() {
-			priorityMultiplier = .1
-			lastAverageTime = .0
-			_times = ArrayList()
-		}
-
-		protected constructor(priorityMultiplier: Double) {
-			this.priorityMultiplier = priorityMultiplier
-			lastAverageTime = .0
-			_times = ArrayList()
-		}
-
-		fun addTime(time: Long) {
-			synchronized(_times) {
-				_times.add(time)
-				if (_times.size > 30) _times.removeAt(0)
-			}
-		}
-
-		abstract fun getTask(): ThrowingConsumer<TaskHandler>?
-
-		abstract fun hasTask(): Boolean
-		val averageTime: Double
-			get() {
-				synchronized(_times) {
-					return _times.average().also { lastAverageTime = it }
-				}
-			}
-
-	}
-
-	/** The ses.  */
-	private val ses = Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors()) as ScheduledThreadPoolExecutor
+	private val taskHandlers: MutableList<TaskHandler> = CopyOnWriteArrayList()
 
 	private val scheduledTasks: MutableMap<Any, ScheduledFuture<*>> = HashMap()
 
 	private val closeRequested = AtomicBoolean(false)
 
-	/** The count.  */
 	private var count = 0
 
-	/** The task handler.  */
-	private val taskHandler: MutableList<TaskHandler> = ArrayList()
+
 
 	private val r: (TaskHandler, ThrowingConsumer<TaskHandler>) -> Unit = { key, data ->
 		val st = System.currentTimeMillis()
