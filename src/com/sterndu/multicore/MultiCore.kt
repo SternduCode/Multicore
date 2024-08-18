@@ -4,7 +4,6 @@ package com.sterndu.multicore
 import com.sterndu.util.interfaces.ThrowingConsumer
 import com.sterndu.util.interfaces.ThrowingRunnable
 import java.util.concurrent.*
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Level
 
 object MultiCore {
@@ -14,12 +13,6 @@ object MultiCore {
 	private val taskHandlers: MutableList<TaskHandler> = CopyOnWriteArrayList()
 
 	private val scheduledTasks: MutableMap<Any, ScheduledFuture<*>> = HashMap()
-
-	private val closeRequested = AtomicBoolean(false)
-
-	private var count = 0
-
-
 
 	private val r: (TaskHandler, ThrowingConsumer<TaskHandler>) -> Unit = { key, data ->
 		val st = System.currentTimeMillis()
