@@ -5,7 +5,9 @@ import com.sterndu.util.interfaces.ThrowingConsumer
 
 object NullTaskHandler : TaskHandler() {
 
-	override fun getTask(): ThrowingConsumer<TaskHandler> = ThrowingConsumer { }
+	val nullTask = ThrowingConsumer<TaskHandler> { }
+
+	override fun getTask(): ThrowingConsumer<TaskHandler> = nullTask
 
 	override fun hasTask(): Boolean {
 		return false
