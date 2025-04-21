@@ -14,7 +14,7 @@ object MultiCore {
 
 	private val scheduledTasks: MutableMap<Any, ScheduledFuture<*>> = HashMap()
 
-	private val r: (TaskHandler, ThrowingConsumer<TaskHandler>) -> Unit = { key, data ->
+	private val kernel: (TaskHandler, ThrowingConsumer<TaskHandler>) -> Unit = { key, data ->
 		val st = System.currentTimeMillis()
 		try {
 			data.accept(key)
@@ -39,7 +39,7 @@ object MultiCore {
 								.filter { it.tr !in scheduledTasks }
 								.forEach { information ->
 									val future = ses.scheduleWithFixedDelay(
-										{ r(taskHandler) { taskHandler.r(information) } },
+										{ kernel(taskHandler) { taskHandler.r(information) } },
 										0,
 										information.millis.coerceAtLeast(1),
 										TimeUnit.MILLISECONDS
@@ -53,7 +53,7 @@ object MultiCore {
 						else -> {
 							while (taskHandler.hasTask()) {
 								taskHandler.getTask()?.let { task ->
-									scheduledTasks[task] = ses.schedule({ r(taskHandler, task) }, 0, TimeUnit.MILLISECONDS)
+									scheduledTasks[task] = ses.schedule({ kernel(taskHandler, task) }, 0, TimeUnit.MILLISECONDS)
 								}
 							}
 						}
