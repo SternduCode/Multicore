@@ -3,9 +3,8 @@ package com.sterndu.multicore
 
 import java.io.File
 import java.io.IOException
-import java.time.Instant
-import java.time.ZoneId
-import java.time.ZonedDateTime
+import java.time.*
+import java.util.concurrent.locks.StampedLock
 import java.util.logging.*
 
 object LoggingUtil {
@@ -14,6 +13,8 @@ object LoggingUtil {
 
 	private lateinit var consoleHandler: ConsoleHandler
 	private var fileHandler: FileHandler? = null
+
+	private val lock = StampedLock()
 
 	private var logToFile: Boolean = false
 
@@ -46,7 +47,10 @@ object LoggingUtil {
 		if (logToFile) {
 			Updater.add(Runnable {
 				if ((System.currentTimeMillis() - System.currentTimeMillis() % secondsOfADay) > day) {
-					synchronized(consoleHandler) {
+					var stamp = 0L
+					try {
+						stamp = lock.writeLock()
+
 						day = System.currentTimeMillis() - System.currentTimeMillis() % secondsOfADay
 						val newFileHandler = FileHandler(String.format("logs/log-%tY.%1\$tm.%1\$td-%%u.log", ZonedDateTime.now()), true)
 						newFileHandler.level = fileHandler!!.level
@@ -60,6 +64,8 @@ object LoggingUtil {
 						fileHandler!!.flush()
 						fileHandler!!.close()
 						fileHandler = newFileHandler
+					} finally {
+						lock.unlock(stamp)
 					}
 				}
 			}, "LoggerFileHandlerUpdater", 1000)
@@ -94,18 +100,21 @@ object LoggingUtil {
 			}
 		}
 
-		synchronized(consoleHandler) {
+		var stamp = 0L
+		try {
+			stamp = lock.writeLock()
+
 			val logger = Logger.getLogger(name)
 			logger.level = Level.ALL
 			logger.useParentHandlers = false
-			if (!logger.handlers.contains(consoleHandler))
+			if (!logger.handlers.contains(consoleHandler)) {
 				logger.addHandler(consoleHandler)
-			if (logToFile) {
-				if (!logger.handlers.contains(fileHandler))
-					logger.addHandler(fileHandler)
 			}
+			if (logToFile && !logger.handlers.contains(fileHandler)) logger.addHandler(fileHandler)
 
 			return logger
+		} finally {
+			lock.unlock(stamp)
 		}
 	}
 
