@@ -1,7 +1,6 @@
 @file:JvmName("Updater")
 package com.sterndu.multicore
 
-import com.sterndu.util.interfaces.ThrowingConsumer
 import com.sterndu.util.interfaces.ThrowingRunnable
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Level
@@ -60,8 +59,8 @@ object Updater : TaskHandler() {
 		taskInformationMap[key] = i
 	}
 
-	override fun getTask(): ThrowingConsumer<TaskHandler> {
-		return ThrowingConsumer {  }
+	override fun getTask(): ThrowingRunnable {
+		return ThrowingRunnable {  }
 	}
 
 	override fun hasTask(): Boolean {

@@ -1,7 +1,7 @@
 @file:JvmName("OneTaskMultipleData")
 package com.sterndu.multicore
 
-import com.sterndu.util.interfaces.ThrowingConsumer
+import com.sterndu.util.interfaces.ThrowingRunnable
 import java.util.*
 
 class OneTaskMultipleData<T, E, O> : TaskHandler {
@@ -53,9 +53,9 @@ class OneTaskMultipleData<T, E, O> : TaskHandler {
 		return results
 	}
 
-	override fun getTask(): ThrowingConsumer<TaskHandler>? {
+	override fun getTask(): ThrowingRunnable? {
 		val entry = paramsFromList
-		return if (entry != null) ThrowingConsumer {
+		return if (entry != null) ThrowingRunnable {
 			val ta = task
 			val res = ta.run(entry.second)
 			putResult(entry.first, res)

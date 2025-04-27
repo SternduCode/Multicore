@@ -1,6 +1,6 @@
 package com.sterndu.multicore
 
-import com.sterndu.util.interfaces.ThrowingConsumer
+import com.sterndu.util.interfaces.ThrowingRunnable
 
 abstract class TaskHandler {
 
@@ -35,7 +35,7 @@ abstract class TaskHandler {
 		}
 	}
 
-	abstract fun getTask(): ThrowingConsumer<TaskHandler>?
+	abstract fun getTask(): ThrowingRunnable?
 
 	abstract fun hasTask(): Boolean
 

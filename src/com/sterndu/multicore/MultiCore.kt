@@ -1,23 +1,25 @@
 @file:JvmName("MultiCore")
 package com.sterndu.multicore
 
-import com.sterndu.util.interfaces.ThrowingConsumer
 import com.sterndu.util.interfaces.ThrowingRunnable
 import java.util.concurrent.*
 import java.util.logging.Level
 
 object MultiCore {
 
-	private val ses = Executors.newScheduledThreadPool(Runtime.getRuntime().availableProcessors(), Thread.ofVirtual().factory()) as ScheduledThreadPoolExecutor
+	private val ses = Executors.newScheduledThreadPool(
+		Runtime.getRuntime().availableProcessors(),
+		Thread.ofVirtual().factory()
+	) as ScheduledThreadPoolExecutor
 
 	private val taskHandlers: MutableList<TaskHandler> = CopyOnWriteArrayList()
 
 	private val scheduledTasks: MutableMap<Any, ScheduledFuture<*>> = HashMap()
 
-	private val kernel: (TaskHandler, ThrowingConsumer<TaskHandler>) -> Unit = { key, data ->
+	private val kernel: (TaskHandler, ThrowingRunnable) -> Unit = { key, data ->
 		val st = System.currentTimeMillis()
 		try {
-			data.accept(key)
+			data.run()
 			var et = System.currentTimeMillis()
 			et -= st
 			key.addTime(et)
@@ -59,9 +61,7 @@ object MultiCore {
 						}
 					}
 				}
-				if (scheduledTasks.entries.removeIf { (_, future) ->
-					future.isDone || future.isCancelled
-				}) {
+				if (scheduledTasks.entries.removeIf { (_, future) -> future.isDone || future.isCancelled }) {
 					// DEBUG Updater.logger.info("Removed a task")
 				}
 

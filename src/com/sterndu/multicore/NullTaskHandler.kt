@@ -1,13 +1,13 @@
 @file:JvmName("NullTaskHandler")
 package com.sterndu.multicore
 
-import com.sterndu.util.interfaces.ThrowingConsumer
+import com.sterndu.util.interfaces.ThrowingRunnable
 
-object NullTaskHandler : TaskHandler() {
+object NullTaskHandler: TaskHandler() {
 
-	val nullTask = ThrowingConsumer<TaskHandler> { }
+	val nullTask = ThrowingRunnable { }
 
-	override fun getTask(): ThrowingConsumer<TaskHandler> = nullTask
+	override fun getTask(): ThrowingRunnable = nullTask
 
 	override fun hasTask(): Boolean {
 		return false

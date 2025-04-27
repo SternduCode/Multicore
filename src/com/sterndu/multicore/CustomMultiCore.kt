@@ -1,7 +1,7 @@
 @file:JvmName("CustomMultiCore")
 package com.sterndu.multicore
 
-import com.sterndu.util.interfaces.ThrowingConsumer
+import com.sterndu.util.interfaces.ThrowingRunnable
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.LockSupport
 import java.util.logging.Level
@@ -12,7 +12,7 @@ object CustomMultiCore {
 
 	private val threads: MutableMap<Thread, CustomMultiCoreThreadState> = HashMap()
 
-	private val queue = ArrayDeque<Pair<TaskHandler, ThrowingConsumer<TaskHandler>>>()
+	private val queue = ArrayDeque<Pair<TaskHandler, ThrowingRunnable>>()
 
 	private val simThreadsLock = Any()
 
@@ -31,7 +31,7 @@ object CustomMultiCore {
 			val st = System.currentTimeMillis()
 			state.hasTask = true
 			try {
-				trowingRunnable.accept(taskHandler)
+				trowingRunnable.run()
 				taskHandler.addTime(System.currentTimeMillis() - st)
 			} catch (e: Exception) {
 				logger.log(Level.WARNING, "CustomMultiCore", e)
@@ -50,7 +50,7 @@ object CustomMultiCore {
 	private var threadNumber: ULong = 0uL
 
 	init {
-		for (i in 0 ..<Runtime.getRuntime().availableProcessors()) {
+		repeat(Runtime.getRuntime().availableProcessors()) {
 			val state = CustomMultiCoreThreadState()
 			threads[makeThread("MultiCore-Worker=$threadNumber", state, kernel)] = state
 			threadNumber++
@@ -58,7 +58,7 @@ object CustomMultiCore {
 		Runtime.getRuntime().addShutdownHook(Thread { close() })
 	}
 
-	private val task: Pair<TaskHandler, ThrowingConsumer<TaskHandler>>?
+	private val task: Pair<TaskHandler, ThrowingRunnable>?
 		get() {
 			//logger.info("Im ${Thread.currentThread().name}")
 			synchronized(queue) {
@@ -66,7 +66,11 @@ object CustomMultiCore {
 					try {
 						taskHandlers.forEach { taskHandler ->
 							if (taskHandler is Updater) {
-								queue.add(taskHandler to ThrowingConsumer { taskHandler.taskInformationMap.map(Map.Entry<Any, Updater.Information>::value).forEach { information -> taskHandler.r(information) } })
+								queue.add(
+									taskHandler to ThrowingRunnable {
+										taskHandler.taskInformationMap.map(Map.Entry<Any, Updater.Information>::value).forEach { information -> taskHandler.r(information) }
+									}
+								)
 							} else {
 								if (taskHandler.hasTask()) {
 									taskHandler.getTask()?.let { task ->
@@ -186,6 +190,4 @@ object CustomMultiCore {
 			}
 		}
 	}
-
-	fun ThrowingConsumer<TaskHandler>?.toNeverNullTask() = this ?: NullTaskHandler.getTask()
 }
