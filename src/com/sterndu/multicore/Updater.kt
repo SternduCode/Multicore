@@ -1,7 +1,6 @@
 @file:JvmName("Updater")
 package com.sterndu.multicore
 
-import com.sterndu.util.interfaces.ThrowingRunnable
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -12,7 +11,7 @@ object Updater : TaskHandler() {
 		val millis: Long = 1L,
 		val times: MutableList<Long> = mutableListOf(0),
 		val clazz: Class<*>,
-		val tr: ThrowingRunnable
+		val runnable: Runnable
 	) {
 		fun avgFreq(): Double {
 			return if (times.size < 2) Double.POSITIVE_INFINITY else
@@ -38,7 +37,7 @@ object Updater : TaskHandler() {
 			val lastRun = if (times.isEmpty()) 0 else times.last()
 			val curr = System.currentTimeMillis()
 			if (curr - lastRun >= information.millis) {
-				information.tr.run()
+				information.runnable.run()
 				if (times.size >= 20) times.removeAt(0)
 				times.add(curr)
 			}
@@ -59,8 +58,8 @@ object Updater : TaskHandler() {
 		taskInformationMap[key] = i
 	}
 
-	override fun getTask(): ThrowingRunnable {
-		return ThrowingRunnable {  }
+	override fun getTask(): Runnable {
+		return Runnable {  }
 	}
 
 	override fun hasTask(): Boolean {
@@ -70,18 +69,14 @@ object Updater : TaskHandler() {
 	/**
 	 * Adds a task to be run periodically
 	 *
-	 * @param R the type of the task, must be either ThrowingRunnable or Runnable
+	 * @param R the type of the task, must be Runnable
 	 * @param r the task to run
 	 * @param key the key of the task
 	 */
-	fun <R> add(r: R, key: Any) {
+	fun add(r: Runnable, key: Any) {
 		try {
 			val caller = getCallingClass()
-			when (r) {
-				is ThrowingRunnable -> add(key, Information(clazz = caller, tr = r))
-				is Runnable -> add(key, Information(clazz = caller, tr = r::run))
-				else -> throw NotImplementedError()
-			}
+			add(key, Information(clazz = caller, runnable = r))
 		} catch (e: ClassNotFoundException) {
 			logger.log(Level.WARNING, "Updater", e)
 		}
@@ -95,14 +90,10 @@ object Updater : TaskHandler() {
 	 * @param key the key of the task
 	 * @param millis the millis
 	 */
-	fun <R> add(r: R, key: Any, millis: Long) {
+	fun add(r: Runnable, key: Any, millis: Long) {
 		try {
 			val caller = getCallingClass()
-			when (r) {
-				is ThrowingRunnable -> add(key, Information(millis, clazz = caller, tr = r))
-				is Runnable -> add(key, Information(millis, clazz = caller, tr = r::run))
-				else -> throw NotImplementedError()
-			}
+			add(key, Information(millis, clazz = caller, runnable = r))
 		} catch (e: ClassNotFoundException) {
 			logger.log(Level.WARNING, "Updater", e)
 		}
@@ -119,7 +110,7 @@ object Updater : TaskHandler() {
 		return try {
 			val caller = getCallingClass()
 			val i = taskInformationMap[key]
-			(i != null && i.clazz == caller) && taskInformationMap.replace(key, Information(millis, i.times, caller, i.tr) ) != null
+			(i != null && i.clazz == caller) && taskInformationMap.replace(key, Information(millis, i.times, caller, i.runnable) ) != null
 		} catch (e: ClassNotFoundException) {
 			logger.log(Level.WARNING, "Updater", e)
 			false

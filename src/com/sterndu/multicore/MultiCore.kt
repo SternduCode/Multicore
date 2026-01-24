@@ -1,7 +1,6 @@
 @file:JvmName("MultiCore")
 package com.sterndu.multicore
 
-import com.sterndu.util.interfaces.ThrowingRunnable
 import java.util.concurrent.*
 import java.util.logging.Level
 
@@ -16,7 +15,7 @@ object MultiCore {
 
 	private val scheduledTasks: MutableMap<Any, ScheduledFuture<*>> = HashMap()
 
-	private val kernel: (TaskHandler, ThrowingRunnable) -> Unit = { key, data ->
+	private val kernel: (TaskHandler, Runnable) -> Unit = { key, data ->
 		val st = System.currentTimeMillis()
 		try {
 			data.run()
@@ -38,7 +37,7 @@ object MultiCore {
 						is Updater -> {
 							taskHandler.taskInformationMap
 								.map(Map.Entry<Any, Updater.Information>::value)
-								.filter { it.tr !in scheduledTasks }
+								.filter { it.runnable !in scheduledTasks }
 								.forEach { information ->
 									val future = ses.scheduleWithFixedDelay(
 										{ kernel(taskHandler) { taskHandler.r(information) } },
@@ -47,7 +46,7 @@ object MultiCore {
 										TimeUnit.MILLISECONDS
 									)
 
-									scheduledTasks[information.tr] = future
+									scheduledTasks[information.runnable] = future
 								}
 							cleanupNonExistentTasks(taskHandler)
 						}
@@ -76,11 +75,11 @@ object MultiCore {
 	private fun cleanupNonExistentTasks(taskHandler: Updater) {
 		scheduledTasks
 			.map(Map.Entry<Any, ScheduledFuture<*>>::key)
-			.filterIsInstance<ThrowingRunnable>()
+			.filterIsInstance<Runnable>()
 			.filterNot {
 				taskHandler.taskInformationMap
 					.map(Map.Entry<Any, Updater.Information>::value)
-					.map(Updater.Information::tr)
+					.map(Updater.Information::runnable)
 					.any(it::equals)
 			}
 			.forEach {

@@ -1,7 +1,5 @@
 package com.sterndu.multicore
 
-import com.sterndu.util.interfaces.ThrowingRunnable
-
 abstract class TaskHandler {
 
 	var priorityMultiplier: Double
@@ -35,7 +33,7 @@ abstract class TaskHandler {
 		}
 	}
 
-	abstract fun getTask(): ThrowingRunnable?
+	abstract fun getTask(): Runnable?
 
 	abstract fun hasTask(): Boolean
 

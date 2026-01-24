@@ -20,10 +20,6 @@ kotlin {
 	}
 }
 
-dependencies {
-	implementation(project(":Util"))
-}
-
 tasks.withType<Jar> {
 	duplicatesStrategy = DuplicatesStrategy.WARN
 }

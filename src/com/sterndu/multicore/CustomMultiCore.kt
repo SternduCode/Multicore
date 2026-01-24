@@ -1,7 +1,6 @@
 @file:JvmName("CustomMultiCore")
 package com.sterndu.multicore
 
-import com.sterndu.util.interfaces.ThrowingRunnable
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.LockSupport
 import java.util.logging.Level
@@ -12,7 +11,7 @@ object CustomMultiCore {
 
 	private val threads: MutableMap<Thread, CustomMultiCoreThreadState> = HashMap()
 
-	private val queue = ArrayDeque<Pair<TaskHandler, ThrowingRunnable>>()
+	private val queue = ArrayDeque<Pair<TaskHandler, Runnable>>()
 
 	private val simThreadsLock = Any()
 
@@ -58,7 +57,7 @@ object CustomMultiCore {
 		Runtime.getRuntime().addShutdownHook(Thread { close() })
 	}
 
-	private val task: Pair<TaskHandler, ThrowingRunnable>?
+	private val task: Pair<TaskHandler, Runnable>?
 		get() {
 			//logger.info("Im ${Thread.currentThread().name}")
 			synchronized(queue) {
@@ -67,7 +66,7 @@ object CustomMultiCore {
 						taskHandlers.forEach { taskHandler ->
 							if (taskHandler is Updater) {
 								queue.add(
-									taskHandler to ThrowingRunnable {
+									taskHandler to Runnable {
 										taskHandler.taskInformationMap.map(Map.Entry<Any, Updater.Information>::value).forEach { information -> taskHandler.r(information) }
 									}
 								)
