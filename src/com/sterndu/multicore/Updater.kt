@@ -69,11 +69,10 @@ object Updater : TaskHandler() {
 	/**
 	 * Adds a task to be run periodically
 	 *
-	 * @param R the type of the task, must be Runnable
-	 * @param r the task to run
 	 * @param key the key of the task
+	 * @param r the task to run
 	 */
-	fun add(r: Runnable, key: Any) {
+	fun add(key: Any, r: Runnable) {
 		try {
 			val caller = getCallingClass()
 			add(key, Information(clazz = caller, runnable = r))
@@ -85,12 +84,11 @@ object Updater : TaskHandler() {
 	/**
 	 * Adds a task to be run periodically after 'millis' milliseconds
 	 *
-	 * @param R the type of the task, must be either ThrowingRunnable or Runnable
-	 * @param r the task to run
 	 * @param key the key of the task
 	 * @param millis the millis
+	 * @param r the task to run
 	 */
-	fun add(r: Runnable, key: Any, millis: Long) {
+	fun add(key: Any, millis: Long, r: Runnable) {
 		try {
 			val caller = getCallingClass()
 			add(key, Information(millis, clazz = caller, runnable = r))
