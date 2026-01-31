@@ -3,7 +3,9 @@ package com.sterndu.multicore
 
 import java.io.File
 import java.io.IOException
-import java.time.*
+import java.time.Instant
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.util.concurrent.locks.StampedLock
 import java.util.logging.*
 
@@ -45,31 +47,31 @@ object LoggingUtil {
 		var day = System.currentTimeMillis() - System.currentTimeMillis() % secondsOfADay
 
 		if (logToFile) {
-			Updater.add(Runnable {
-				if ((System.currentTimeMillis() - System.currentTimeMillis() % secondsOfADay) > day) {
-					var stamp = 0L
-					try {
-						stamp = lock.writeLock()
+			Updater.add("LoggerFileHandlerUpdater", 1000) {
+                if ((System.currentTimeMillis() - System.currentTimeMillis() % secondsOfADay) > day) {
+                    var stamp = 0L
+                    try {
+                        stamp = lock.writeLock()
 
-						day = System.currentTimeMillis() - System.currentTimeMillis() % secondsOfADay
-						val newFileHandler = FileHandler(String.format("logs/log-%tY.%1\$tm.%1\$td-%%u.log", ZonedDateTime.now()), true)
-						newFileHandler.level = fileHandler!!.level
-						newFileHandler.formatter = CustomFormatterFile()
-						val logManager = LogManager.getLogManager()
-						for (name in logManager.loggerNames) {
-							val logger = logManager.getLogger(name)
-							logger.addHandler(newFileHandler)
-							logger.removeHandler(fileHandler!!)
-						}
-						fileHandler!!.flush()
-						fileHandler!!.close()
-						fileHandler = newFileHandler
-					} finally {
-						lock.unlock(stamp)
-					}
-				}
-			}, "LoggerFileHandlerUpdater", 1000)
-		}
+                        day = System.currentTimeMillis() - System.currentTimeMillis() % secondsOfADay
+                        val newFileHandler = FileHandler(String.format("logs/log-%tY.%1\$tm.%1\$td-%%u.log", ZonedDateTime.now()), true)
+                        newFileHandler.level = fileHandler!!.level
+                        newFileHandler.formatter = CustomFormatterFile()
+                        val logManager = LogManager.getLogManager()
+                        for (name in logManager.loggerNames) {
+                            val logger = logManager.getLogger(name)
+                            logger.addHandler(newFileHandler)
+                            logger.removeHandler(fileHandler!!)
+                        }
+                        fileHandler!!.flush()
+                        fileHandler!!.close()
+                        fileHandler = newFileHandler
+                    } finally {
+                        lock.unlock(stamp)
+                    }
+                }
+            }
+        }
 	}
 
 	@JvmStatic
