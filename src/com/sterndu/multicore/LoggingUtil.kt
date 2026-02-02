@@ -32,8 +32,6 @@ object LoggingUtil {
 	private var initialized = false
 
 	private fun init() {
-		initialized = true
-
 		consoleHandler = ConsoleHandler()
 		consoleHandler.formatter = CustomFormatterConsole()
 		if (logToFile) {
@@ -72,6 +70,8 @@ object LoggingUtil {
                 }
             }
         }
+
+		initialized = true
 	}
 
 	@JvmStatic
