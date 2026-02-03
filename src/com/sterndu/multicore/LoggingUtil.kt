@@ -11,7 +11,9 @@ import java.util.logging.*
 
 object LoggingUtil {
 
-	private const val secondsOfADay = 86400000L
+	private const val LOGFILE_PATTERN = $$"logs/log-%tY.%1$tm.%1$td-%%u.log"
+
+	private const val SECONDS_OF_A_DAY = 86400000L
 
 	private lateinit var consoleHandler: ConsoleHandler
 	private var fileHandler: FileHandler? = null
@@ -35,24 +37,24 @@ object LoggingUtil {
 		consoleHandler = ConsoleHandler()
 		consoleHandler.formatter = CustomFormatterConsole()
 		if (logToFile) {
-			fileHandler = FileHandler(String.format("logs/log-%tY.%1\$tm.%1\$td-%%u.log", ZonedDateTime.now()), true)
+			fileHandler = FileHandler(String.format(LOGFILE_PATTERN, ZonedDateTime.now()), true)
 				.apply {
 					level = Level.FINER
 					formatter = CustomFormatterFile()
 				}
 		}
 
-		var day = System.currentTimeMillis() - System.currentTimeMillis() % secondsOfADay
+		var day = System.currentTimeMillis() - System.currentTimeMillis() % SECONDS_OF_A_DAY
 
 		if (logToFile) {
 			Updater.add("LoggerFileHandlerUpdater", 1000) {
-                if ((System.currentTimeMillis() - System.currentTimeMillis() % secondsOfADay) > day) {
+                if ((System.currentTimeMillis() - System.currentTimeMillis() % SECONDS_OF_A_DAY) > day) {
                     var stamp = 0L
                     try {
                         stamp = lock.writeLock()
 
-                        day = System.currentTimeMillis() - System.currentTimeMillis() % secondsOfADay
-                        val newFileHandler = FileHandler(String.format("logs/log-%tY.%1\$tm.%1\$td-%%u.log", ZonedDateTime.now()), true)
+                        day = System.currentTimeMillis() - System.currentTimeMillis() % SECONDS_OF_A_DAY
+                        val newFileHandler = FileHandler(String.format(LOGFILE_PATTERN, ZonedDateTime.now()), true)
                         newFileHandler.level = fileHandler!!.level
                         newFileHandler.formatter = CustomFormatterFile()
                         val logManager = LogManager.getLogManager()
@@ -123,9 +125,18 @@ object LoggingUtil {
 	class CustomFormatterFile: Formatter() {
 
 		override fun format(record: LogRecord): String {
-			return String.format("[%1\$td.%1\$tm.%1\$tY %1\$tH:%1\$tM:%1\$tS.%1\$tL%1\$tz][%1\$tQ][%3\$s]: %4\$s: %5\$s %6\$s%n",
-				Instant.ofEpochMilli(record.millis).atZone(ZoneId.systemDefault()), record.sourceClassName + "." + record.sourceMethodName, record.loggerName,
-				record.level.name, record.message, if (record.thrown != null) record.thrown.message.plus("\n").plus(record.thrown.stackTrace.joinToString("\n")) else "")
+			return String.format(
+                $$"[%1$td.%1$tm.%1$tY %1$tH:%1$tM:%1$tS.%1$tL%1$tz][%1$tQ][%3$s]: %4$s: %5$s %6$s%n",
+				Instant.ofEpochMilli(record.millis).atZone(ZoneId.systemDefault()),
+				record.sourceClassName + "." + record.sourceMethodName,
+				record.loggerName,
+				record.level.name,
+				record.message,
+				if (record.thrown != null)
+					record.thrown.message.plus("\n")
+						.plus(record.thrown.stackTrace.joinToString("\n"))
+				else ""
+			)
 		}
 
 	}
@@ -133,9 +144,18 @@ object LoggingUtil {
 	class CustomFormatterConsole: Formatter() {
 
 		override fun format(record: LogRecord): String {
-			return String.format("[%1\$td.%1\$tm.%1\$tY %1\$tH:%1\$tM:%1\$tS.%1\$tL%1\$tz][%3\$s]: %4\$s: %5\$s %6\$s%n",
-				Instant.ofEpochMilli(record.millis).atZone(ZoneId.systemDefault()), record.sourceClassName + "." + record.sourceMethodName, record.loggerName,
-				record.level.name, record.message, if (record.thrown != null) record.thrown.message.plus("\n").plus(record.thrown.stackTrace.joinToString("\n")) else "")
+			return String.format(
+                $$"[%1$td.%1$tm.%1$tY %1$tH:%1$tM:%1$tS.%1$tL%1$tz][%3$s]: %4$s: %5$s %6$s%n",
+				Instant.ofEpochMilli(record.millis).atZone(ZoneId.systemDefault()),
+				record.sourceClassName + "." + record.sourceMethodName,
+				record.loggerName,
+				record.level.name,
+				record.message,
+				if (record.thrown != null)
+					record.thrown.message.plus("\n")
+						.plus(record.thrown.stackTrace.joinToString("\n"))
+				else ""
+			)
 		}
 
 	}
