@@ -60,8 +60,8 @@ object MultiCore {
 						}
 					}
 				}
-				if (scheduledTasks.entries.removeIf { (_, future) -> future.isDone || future.isCancelled }) {
-					// DEBUG Updater.logger.info("Removed a task")
+				if (scheduledTasks.entries.removeIf { (_, future) -> future.isDone || future.isCancelled } && "true" == System.getProperty("debug")) {
+					Updater.logger.info("Removed a task")
 				}
 
 			} catch (e: Exception) {

@@ -10,41 +10,41 @@ class OneTaskMultipleData<T, E, O> : TaskHandler {
 
 	private val task: Task<E, O>
 	private val results: MutableMap<T, O>
-	private val params_list: MutableList<Pair<T, Array<out E>>>
+	private val paramsList: MutableList<Pair<T, Array<out E>>>
 	private val lock = Any()
-	private var active_tasks = 0
+	private var activeTasks = 0
 
 	constructor(task: Task<E, O>) {
 		this.task = task
 		results = HashMap()
-		params_list = LinkedList()
+		paramsList = LinkedList()
 	}
 
 	constructor(task: Task<E, O>, priorityMultiplier: Double) : super(priorityMultiplier) {
 		this.task = task
 		results = HashMap()
-		params_list = LinkedList()
+		paramsList = LinkedList()
 	}
 
 	private val paramsFromList: Pair<T, Array<out E>>?
 		get() {
-			if (params_list.isNotEmpty()) synchronized(params_list) {
-				synchronized(lock) { active_tasks++ }
-				return params_list.removeAt(0)
+			if (paramsList.isNotEmpty()) synchronized(paramsList) {
+				synchronized(lock) { activeTasks++ }
+				return paramsList.removeAt(0)
 			} else return null
 		}
 
 	private fun putResult(key: T, res: O) {
-		synchronized(lock) { active_tasks-- }
+		synchronized(lock) { activeTasks-- }
 		results[key] = res
 	}
 
 	override fun hasTask(): Boolean {
-		return params_list.isNotEmpty()
+		return paramsList.isNotEmpty()
 	}
 
 	fun getResults(): Map<T, O> {
-		while (params_list.isNotEmpty() || active_tasks != 0) try {
+		while (paramsList.isNotEmpty() || activeTasks != 0) try {
 			Thread.sleep(2)
 		} catch (e: InterruptedException) {
 			e.printStackTrace()
@@ -62,6 +62,6 @@ class OneTaskMultipleData<T, E, O> : TaskHandler {
 	}
 
 	fun pushParams(key: T, vararg e: E) {
-		synchronized(params_list) { params_list.add(key to e) }
+		synchronized(paramsList) { paramsList.add(key to e) }
 	}
 }
