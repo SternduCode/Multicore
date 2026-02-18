@@ -34,9 +34,9 @@ object MultiCore {
 			try {
 				for (taskHandler in taskHandlers) {
 					when (taskHandler) {
-						is Updater -> {
+						is RepeatingTaskHandler -> {
 							taskHandler.taskInformationMap
-								.map(Map.Entry<Any, Updater.Information>::value)
+								.map(Map.Entry<Any, RepeatingTaskHandler.Information>::value)
 								.filter { it.runnable !in scheduledTasks }
 								.forEach { information ->
 									val future = ses.scheduleWithFixedDelay(
@@ -78,8 +78,8 @@ object MultiCore {
 			.filterIsInstance<Runnable>()
 			.filterNot {
 				taskHandler.taskInformationMap
-					.map(Map.Entry<Any, Updater.Information>::value)
-					.map(Updater.Information::runnable)
+					.map(Map.Entry<Any, RepeatingTaskHandler.Information>::value)
+					.map(RepeatingTaskHandler.Information::runnable)
 					.any(it::equals)
 			}
 			.forEach {

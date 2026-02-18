@@ -64,10 +64,10 @@ object CustomMultiCore {
 				synchronized(taskHandlers) {
 					try {
 						taskHandlers.forEach { taskHandler ->
-							if (taskHandler is Updater) {
+							if (taskHandler is RepeatingTaskHandler) {
 								queue.add(
 									taskHandler to Runnable {
-										taskHandler.taskInformationMap.map(Map.Entry<Any, Updater.Information>::value).forEach { information -> taskHandler.r(information) }
+										taskHandler.taskInformationMap.map(Map.Entry<Any, RepeatingTaskHandler.Information>::value).forEach { information -> taskHandler.r(information) }
 									}
 								)
 							} else {
