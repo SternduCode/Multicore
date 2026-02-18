@@ -5,7 +5,10 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Level
 import java.util.logging.Logger
 
-object Updater : TaskHandler() {
+@Deprecated("Use RepeatingTaskHandler instead", ReplaceWith("RepeatingTaskHandler"))
+typealias Updater = RepeatingTaskHandler
+
+object RepeatingTaskHandler : TaskHandler() {
 
 	internal data class Information(
 		val millis: Long = 1L,
