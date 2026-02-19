@@ -33,7 +33,9 @@ abstract class TaskHandler {
 		}
 	}
 
-	abstract fun getTask(): Runnable?
+	internal open fun internalGetTask(): Runnable? = getTask()
+
+	protected abstract fun getTask(): Runnable?
 
 	abstract fun hasTask(): Boolean
 

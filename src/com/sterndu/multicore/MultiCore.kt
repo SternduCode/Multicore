@@ -6,6 +6,8 @@ import java.util.logging.Level
 
 object MultiCore {
 
+	val logger = LoggingUtil.getLogger("MultiCore")
+
 	private val ses = Executors.newScheduledThreadPool(
 		Runtime.getRuntime().availableProcessors(),
 		Thread.ofVirtual().factory()
@@ -53,7 +55,7 @@ object MultiCore {
 
 						else -> {
 							while (taskHandler.hasTask()) {
-								taskHandler.getTask()?.let { task ->
+								taskHandler.internalGetTask()?.let { task ->
 									scheduledTasks[task] = ses.schedule({ kernel(taskHandler, task) }, 0, TimeUnit.MILLISECONDS)
 								}
 							}
@@ -61,15 +63,15 @@ object MultiCore {
 					}
 				}
 				if (scheduledTasks.entries.removeIf { (_, future) -> future.isDone || future.isCancelled } && "true" == System.getProperty("debug")) {
-					Updater.logger.info("Removed a task")
+					logger.info("Removed a task")
 				}
 
 			} catch (e: Exception) {
-				Updater.logger.log(Level.WARNING, "MultiCore ${e.javaClass.simpleName} ${e.message} ${e.cause}", e)
+				logger.log(Level.WARNING, "MultiCore ${e.javaClass.simpleName} ${e.message} ${e.cause}", e)
 			}
 		}, 0, 1, TimeUnit.MILLISECONDS)
 		
-		Runtime.getRuntime().addShutdownHook(Thread { close() })
+		Runtime.getRuntime().addShutdownHook(Thread { stop() })
 	}
 
 	private fun cleanupNonExistentTasks(taskHandler: Updater) {
@@ -101,7 +103,7 @@ object MultiCore {
 		checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded()
 	}
 
-	fun close() {
+	fun stop() {
 		ses.shutdown()
 	}
 
@@ -119,8 +121,7 @@ object MultiCore {
 	fun getActiveThreads() = ses.activeCount
 
 	fun removeTaskHandler(taskHandler: TaskHandler): Boolean {
-		val b = this.taskHandlers.remove(taskHandler)
-		return b
+		return taskHandlers.remove(taskHandler)
 	}
 
 	@Synchronized

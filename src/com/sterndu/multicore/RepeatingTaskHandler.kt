@@ -8,7 +8,7 @@ import java.util.logging.Logger
 @Deprecated("Use RepeatingTaskHandler instead", ReplaceWith("RepeatingTaskHandler"))
 typealias Updater = RepeatingTaskHandler
 
-object RepeatingTaskHandler : TaskHandler() {
+object RepeatingTaskHandler: TaskHandler() {
 
 	internal data class Information(
 		val millis: Long = 1L,
@@ -16,20 +16,20 @@ object RepeatingTaskHandler : TaskHandler() {
 		val clazz: Class<*>,
 		val runnable: Runnable
 	) {
-		fun avgFreq(): Double {
+		fun averageFrequency(): Double {
 			return if (times.size < 2) Double.POSITIVE_INFINITY else
 				times.mapIndexed { index, value -> if (index > 0) value - times[index - 1] else 0 }.drop(1).average()
 		}
 	}
 
 	@Suppress("NOTHING_TO_INLINE")
-	inline fun getCallingClass(): Class<*> {
+	private inline fun getCallingClass(): Class<*> {
 		return StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE).callerClass
 	}
 
-	internal val logger: Logger
+	private val logger: Logger = LoggingUtil.getLogger("Updater")
 
-	private val interrupted: MutableList<Exception> = ArrayList()
+    private val interrupted: MutableList<Exception> = ArrayList()
 
 	internal val taskInformationMap: MutableMap<Any, Information> = ConcurrentHashMap<Any, Information>()
 
@@ -52,9 +52,7 @@ object RepeatingTaskHandler : TaskHandler() {
 	}
 
 	init {
-		priorityMultiplier = 0.01
-		logger = LoggingUtil.getLogger("Updater")
-		MultiCore.addTaskHandler(this)
+        MultiCore.addTaskHandler(this)
 	}
 
 	private fun add(key: Any, i: Information) {
@@ -62,7 +60,7 @@ object RepeatingTaskHandler : TaskHandler() {
 	}
 
 	override fun getTask(): Runnable {
-		return Runnable {  }
+		return NullTaskHandler.nullTask
 	}
 
 	override fun hasTask(): Boolean {
@@ -73,38 +71,38 @@ object RepeatingTaskHandler : TaskHandler() {
 	 * Adds a task to be run periodically
 	 *
 	 * @param key the key of the task
-	 * @param r the task to run
+	 * @param task the task to run
 	 */
-	fun add(key: Any, r: Runnable) {
+	fun add(key: Any, task: Runnable) {
 		try {
 			val caller = getCallingClass()
-			add(key, Information(clazz = caller, runnable = r))
+			add(key, Information(clazz = caller, runnable = task))
 		} catch (e: ClassNotFoundException) {
 			logger.log(Level.WARNING, "Updater", e)
 		}
 	}
 
 	/**
-	 * Adds a task to be run periodically after 'millis' milliseconds
+	 * Adds a task to be run periodically every 'millis' milliseconds
 	 *
 	 * @param key the key of the task
-	 * @param millis the millis
-	 * @param r the task to run
+	 * @param millis the frequency
+	 * @param task the task to run
 	 */
-	fun add(key: Any, millis: Long, r: Runnable) {
+	fun add(key: Any, millis: Long, task: Runnable) {
 		try {
 			val caller = getCallingClass()
-			add(key, Information(millis, clazz = caller, runnable = r))
+			add(key, Information(millis, clazz = caller, runnable = task))
 		} catch (e: ClassNotFoundException) {
 			logger.log(Level.WARNING, "Updater", e)
 		}
 	}
 
 	/**
-	 * Change target freq.
+	 * Change target frequency.
 	 *
-	 * @param key the key
-	 * @param millis the millis
+	 * @param key the key of the task
+	 * @param millis the frequency
 	 * @return true, if successful
 	 */
 	fun changeTargetFreq(key: Any, millis: Long): Boolean {
@@ -118,17 +116,11 @@ object RepeatingTaskHandler : TaskHandler() {
 		}
 	}
 
-	/**
-	 * Gets the avg exec freq.
-	 *
-	 * @param key the key
-	 * @return the avg exec freq
-	 */
-	fun getAvgExecFreq(key: Any): Double {
+	fun getAverageExecutionFrequency(key: Any): Double {
 		return try {
 			val caller = getCallingClass()
 			val i = taskInformationMap[key]
-			if (i == null || i.clazz != caller) 0.0 else i.avgFreq()
+			if (i == null || i.clazz != caller) 0.0 else i.averageFrequency()
 		} catch (e: ClassNotFoundException) {
 			logger.log(Level.WARNING, "Updater", e)
 			0.0
@@ -156,9 +148,6 @@ object RepeatingTaskHandler : TaskHandler() {
 		}
 	}
 
-	/**
-	 * Removes the all.
-	 */
 	fun removeAll() {
 		try {
 			val caller = getCallingClass()

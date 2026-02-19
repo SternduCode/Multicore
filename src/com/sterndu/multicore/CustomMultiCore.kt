@@ -25,7 +25,7 @@ object CustomMultiCore {
 			val (taskHandler, trowingRunnable) = task ?: run {
 				//logger.info("About to leave ${Thread.currentThread().name} active: $activeThreadsCount queued: $amountOfAvailableTasks hasTask: ${thread.hasTask} state: ${thread.state} states: ${threads.joinToString { "${it.name}: ${it.state}" }}")
 				LockSupport.park()
-				NullTaskHandler to NullTaskHandler.getTask()
+				NullTaskHandler to NullTaskHandler.internalGetTask()
 			}
 			val st = System.currentTimeMillis()
 			state.hasTask = true
@@ -72,7 +72,7 @@ object CustomMultiCore {
 								)
 							} else {
 								if (taskHandler.hasTask()) {
-									taskHandler.getTask()?.let { task ->
+									taskHandler.internalGetTask()?.let { task ->
 										queue.add(taskHandler to task)
 									}
 								}
@@ -89,13 +89,13 @@ object CustomMultiCore {
 
 				return when {
 					wantedChange >= 0 && queue.isNotEmpty() -> queue.removeFirst()
-					wantedChange >= 0 -> NullTaskHandler to NullTaskHandler.getTask()
+					wantedChange >= 0 -> NullTaskHandler to NullTaskHandler.internalGetTask()
 					activeThreadsCount > maxSimultaneousThreads -> {
 						threads[Thread.currentThread()]?.let { it.shouldShutdown = true }
-						NullTaskHandler to NullTaskHandler.getTask()
+						NullTaskHandler to NullTaskHandler.internalGetTask()
 					}
 					activeThreadsCount - amountOfExecutingThreads > 1 -> null
-					else -> NullTaskHandler to NullTaskHandler.getTask()
+					else -> NullTaskHandler to NullTaskHandler.internalGetTask()
 				}
 			}
 		}
