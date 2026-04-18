@@ -27,7 +27,7 @@ object RepeatingTaskHandler: TaskHandler() {
 		return StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE).callerClass
 	}
 
-	private val logger: Logger = LoggingUtil.getLogger("Updater")
+	private val logger: Logger = LoggingUtil.getLogger("RepeatingTaskHandler")
 
     private val interrupted: MutableList<Exception> = ArrayList()
 
@@ -78,7 +78,7 @@ object RepeatingTaskHandler: TaskHandler() {
 			val caller = getCallingClass()
 			add(key, Information(clazz = caller, runnable = task))
 		} catch (e: ClassNotFoundException) {
-			logger.log(Level.WARNING, "Updater", e)
+			logger.log(Level.WARNING, "RepeatingTaskHandler", e)
 		}
 	}
 
@@ -94,7 +94,7 @@ object RepeatingTaskHandler: TaskHandler() {
 			val caller = getCallingClass()
 			add(key, Information(millis, clazz = caller, runnable = task))
 		} catch (e: ClassNotFoundException) {
-			logger.log(Level.WARNING, "Updater", e)
+			logger.log(Level.WARNING, "RepeatingTaskHandler", e)
 		}
 	}
 
@@ -111,7 +111,7 @@ object RepeatingTaskHandler: TaskHandler() {
 			val i = taskInformationMap[key]
 			(i != null && i.clazz == caller) && taskInformationMap.replace(key, Information(millis, i.times, caller, i.runnable) ) != null
 		} catch (e: ClassNotFoundException) {
-			logger.log(Level.WARNING, "Updater", e)
+			logger.log(Level.WARNING, "RepeatingTaskHandler", e)
 			false
 		}
 	}
@@ -122,7 +122,7 @@ object RepeatingTaskHandler: TaskHandler() {
 			val i = taskInformationMap[key]
 			if (i == null || i.clazz != caller) 0.0 else i.averageFrequency()
 		} catch (e: ClassNotFoundException) {
-			logger.log(Level.WARNING, "Updater", e)
+			logger.log(Level.WARNING, "RepeatingTaskHandler", e)
 			0.0
 		}
 	}
@@ -143,7 +143,7 @@ object RepeatingTaskHandler: TaskHandler() {
 			logger.fine("remove $key $caller $i") // TODO sometimes causes ConcurrentModificationException fix
 			(i != null && i.clazz == caller) && taskInformationMap.remove(key) != null
 		} catch (e: ClassNotFoundException) {
-			logger.log(Level.WARNING, "Updater", e)
+			logger.log(Level.WARNING, "RepeatingTaskHandler", e)
 			false
 		}
 	}
@@ -153,7 +153,7 @@ object RepeatingTaskHandler: TaskHandler() {
 			val caller = getCallingClass()
 			taskInformationMap.entries.removeIf { (_, value): Map.Entry<Any, Information> -> value.clazz == caller }
 		} catch (e: ClassNotFoundException) {
-			logger.log(Level.WARNING, "Updater", e)
+			logger.log(Level.WARNING, "RepeatingTaskHandler", e)
 		}
 	}
 

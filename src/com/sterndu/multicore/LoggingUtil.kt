@@ -47,7 +47,7 @@ object LoggingUtil {
 		var day = System.currentTimeMillis() - System.currentTimeMillis() % SECONDS_OF_A_DAY
 
 		if (logToFile) {
-			Updater.add("LoggerFileHandlerUpdater", 1000) {
+			RepeatingTaskHandler.add("LoggerFileHandlerUpdater", 1000) {
                 if ((System.currentTimeMillis() - System.currentTimeMillis() % SECONDS_OF_A_DAY) > day) {
                     var stamp = 0L
                     try {

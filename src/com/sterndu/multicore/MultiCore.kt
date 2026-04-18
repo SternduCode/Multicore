@@ -32,7 +32,7 @@ object MultiCore {
 	init {
 		ses.allowCoreThreadTimeOut(true)
 		ses.scheduleWithFixedDelay({
-			// DEBUG Updater.logger.info("Doing House keeping")
+			// DEBUG RepeatingTaskHandler.logger.info("Doing House keeping")
 			try {
 				for (taskHandler in taskHandlers) {
 					when (taskHandler) {
@@ -74,7 +74,7 @@ object MultiCore {
 		Runtime.getRuntime().addShutdownHook(Thread { stop() })
 	}
 
-	private fun cleanupNonExistentTasks(taskHandler: Updater) {
+	private fun cleanupNonExistentTasks(taskHandler: RepeatingTaskHandler) {
 		scheduledTasks
 			.map(Map.Entry<Any, ScheduledFuture<*>>::key)
 			.filterIsInstance<Runnable>()
@@ -85,7 +85,7 @@ object MultiCore {
 					.any(it::equals)
 			}
 			.forEach {
-				// DEBUG Updater.logger.info("Cleaned a task")
+				// DEBUG RepeatingTaskHandler.logger.info("Cleaned a task")
 				scheduledTasks[it]!!.cancel(false)
 				scheduledTasks.remove(it)
 			}
