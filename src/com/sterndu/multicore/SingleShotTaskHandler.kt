@@ -1,20 +1,20 @@
 package com.sterndu.multicore
 
-import java.util.*
-
 object SingleShotTaskHandler: TaskHandler() {
 
-    private val tasks: MutableList<Runnable> = LinkedList()
-
-    init {
-        MultiCore.addTaskHandler(this)
+    @Deprecated("Use the function on Multicore", ReplaceWith("Multicore.scheduleTask(task)"))
+    @Suppress("NOTHING_TO_INLINE")
+    inline fun add(task: Runnable) {
+        MultiCore.scheduleTask(task = task::run)
     }
 
-    fun add(task: Runnable) {
-        tasks.add(task)
+    @Deprecated("Use the function on Multicore", ReplaceWith("Multicore.scheduleTask(task)"))
+    @Suppress("NOTHING_TO_INLINE")
+    inline fun add(noinline task: () -> Unit) {
+        MultiCore.scheduleTask(task = task)
     }
 
-    override fun getTask(): Runnable? = tasks.removeFirstOrNull()
+    override fun getTask(): () -> Unit = NullTaskHandler.nullTask
 
-    override fun hasTask(): Boolean = tasks.isNotEmpty()
+    override fun hasTask(): Boolean = false
 }

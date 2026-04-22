@@ -8,20 +8,20 @@ class OneTaskMultipleData<T, E, O> : TaskHandler {
 		fun run(e: Array<out E>): O
 	}
 
-	private val task: Task<E, O>
+	private val taskToBeRun: Task<E, O>
 	private val results: MutableMap<T, O>
 	private val paramsList: MutableList<Pair<T, Array<out E>>>
 	private val lock = Any()
 	private var activeTasks = 0
 
-	constructor(task: Task<E, O>) {
-		this.task = task
-		results = HashMap()
-		paramsList = LinkedList()
-	}
-
-	constructor(task: Task<E, O>, priorityMultiplier: Double) : super(priorityMultiplier) {
-		this.task = task
+	constructor(
+		task: Task<E, O>,
+		millis: Long = 0,
+		isFixedDelay: Boolean = false,
+		nextRun: Long = 0,
+		canRunSimultaneously: Boolean = false,
+	): super(millis, isFixedDelay, nextRun, canRunSimultaneously) {
+		this.taskToBeRun = task
 		results = HashMap()
 		paramsList = LinkedList()
 	}
@@ -52,12 +52,14 @@ class OneTaskMultipleData<T, E, O> : TaskHandler {
 		return results
 	}
 
-	override fun getTask(): Runnable? {
+	override fun getTask(): (() -> Unit)? {
 		val entry = paramsFromList
-		return if (entry != null) Runnable {
-			val ta = task
-			val res = ta.run(entry.second)
-			putResult(entry.first, res)
+		return if (entry != null) {
+			{
+				val ta = taskToBeRun
+				val res = ta.run(entry.second)
+				putResult(entry.first, res)
+			}
 		} else null
 	}
 

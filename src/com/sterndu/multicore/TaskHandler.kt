@@ -1,49 +1,18 @@
 package com.sterndu.multicore
 
-abstract class TaskHandler {
+abstract class TaskHandler(
+	millis: Long = 0,
+	isFixedDelay: Boolean = false,
+	nextRun: Long = 0,
+	canRunSimultaneously: Boolean = false,
+): Task(millis, isFixedDelay, nextRun, canRunSimultaneously) {
 
-	var priorityMultiplier: Double
+	internal open fun internalGetTask(): (() -> Unit)? = getTask()
 
-	var lastAverageTime: Double
-		protected set
+	protected abstract fun getTask(): (() -> Unit)?
 
-	private val _times: MutableList<Long>
-
-	val times: List<Long>
-		get() = _times.toList()
-
-
-	protected constructor() {
-		priorityMultiplier = .1
-		lastAverageTime = .0
-		_times = ArrayList()
-	}
-
-	protected constructor(priorityMultiplier: Double) {
-		this.priorityMultiplier = priorityMultiplier
-		lastAverageTime = .0
-		_times = ArrayList()
-	}
-
-	fun addTime(time: Long) {
-		synchronized(_times) {
-			_times.add(time)
-			if (_times.size > 20) _times.removeAt(0)
-			averageTime
-		}
-	}
-
-	internal open fun internalGetTask(): Runnable? = getTask()
-
-	protected abstract fun getTask(): Runnable?
+	final override val task: () -> Unit get() = getTask() ?: NullTaskHandler.internalGetTask()
 
 	abstract fun hasTask(): Boolean
-
-	val averageTime: Double
-		get() {
-			synchronized(_times) {
-				return _times.average().also { lastAverageTime = it }
-			}
-		}
 
 }

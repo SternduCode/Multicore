@@ -8,6 +8,7 @@ import java.util.logging.Logger
 @Deprecated("Use RepeatingTaskHandler instead", ReplaceWith("RepeatingTaskHandler"))
 typealias Updater = RepeatingTaskHandler
 
+@Deprecated("Use Multicore instead", ReplaceWith("MultiCore"))
 object RepeatingTaskHandler: TaskHandler() {
 
 	internal data class Information(
@@ -15,21 +16,9 @@ object RepeatingTaskHandler: TaskHandler() {
 		val times: MutableList<Long> = mutableListOf(0),
 		val clazz: Class<*>,
 		val runnable: Runnable
-	) {
-		fun averageFrequency(): Double {
-			return if (times.size < 2) Double.POSITIVE_INFINITY else
-				times.mapIndexed { index, value -> if (index > 0) value - times[index - 1] else 0 }.drop(1).average()
-		}
-	}
-
-	@Suppress("NOTHING_TO_INLINE")
-	private inline fun getCallingClass(): Class<*> {
-		return StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE).callerClass
-	}
+	)
 
 	private val logger: Logger = LoggingUtil.getLogger("RepeatingTaskHandler")
-
-    private val interrupted: MutableList<Exception> = ArrayList()
 
 	internal val taskInformationMap: MutableMap<Any, Information> = ConcurrentHashMap<Any, Information>()
 
@@ -45,26 +34,16 @@ object RepeatingTaskHandler: TaskHandler() {
 				times.add(curr)
 			}
 		} catch (e: Exception) {
-			synchronized(interrupted) {
-				interrupted.add(e)
-			}
+			logger.log(Level.WARNING, "RepeatingTaskHandler", e)
 		}
 	}
 
-	init {
-        MultiCore.addTaskHandler(this)
-	}
-
-	private fun add(key: Any, i: Information) {
-		taskInformationMap[key] = i
-	}
-
-	override fun getTask(): Runnable {
+	override fun getTask(): () -> Unit {
 		return NullTaskHandler.nullTask
 	}
 
 	override fun hasTask(): Boolean {
-		return taskInformationMap.isNotEmpty()
+		return false
 	}
 
 	/**
@@ -73,13 +52,10 @@ object RepeatingTaskHandler: TaskHandler() {
 	 * @param key the key of the task
 	 * @param task the task to run
 	 */
-	fun add(key: Any, task: Runnable) {
-		try {
-			val caller = getCallingClass()
-			add(key, Information(clazz = caller, runnable = task))
-		} catch (e: ClassNotFoundException) {
-			logger.log(Level.WARNING, "RepeatingTaskHandler", e)
-		}
+	@Deprecated("Use the function on Multicore", ReplaceWith("Multicore.scheduleTaskAtFixedRate(key, 0, task)"))
+	@Suppress("NOTHING_TO_INLINE")
+	inline fun add(key: Any, task: Runnable) {
+		MultiCore.scheduleTaskAtFixedRate(key.toString(), millis = 0, task = task::run)
 	}
 
 	/**
@@ -89,46 +65,11 @@ object RepeatingTaskHandler: TaskHandler() {
 	 * @param millis the frequency
 	 * @param task the task to run
 	 */
-	fun add(key: Any, millis: Long, task: Runnable) {
-		try {
-			val caller = getCallingClass()
-			add(key, Information(millis, clazz = caller, runnable = task))
-		} catch (e: ClassNotFoundException) {
-			logger.log(Level.WARNING, "RepeatingTaskHandler", e)
-		}
+	@Deprecated("Use the function on Multicore", ReplaceWith("Multicore.scheduleTaskAtFixedRate(key, millis, task)"))
+	@Suppress("NOTHING_TO_INLINE")
+	inline fun add(key: Any, millis: Long, task: Runnable) {
+		MultiCore.scheduleTaskAtFixedRate(key.toString(), millis = millis, task = task::run)
 	}
-
-	/**
-	 * Change target frequency.
-	 *
-	 * @param key the key of the task
-	 * @param millis the frequency
-	 * @return true, if successful
-	 */
-	fun changeTargetFreq(key: Any, millis: Long): Boolean {
-		return try {
-			val caller = getCallingClass()
-			val i = taskInformationMap[key]
-			(i != null && i.clazz == caller) && taskInformationMap.replace(key, Information(millis, i.times, caller, i.runnable) ) != null
-		} catch (e: ClassNotFoundException) {
-			logger.log(Level.WARNING, "RepeatingTaskHandler", e)
-			false
-		}
-	}
-
-	fun getAverageExecutionFrequency(key: Any): Double {
-		return try {
-			val caller = getCallingClass()
-			val i = taskInformationMap[key]
-			if (i == null || i.clazz != caller) 0.0 else i.averageFrequency()
-		} catch (e: ClassNotFoundException) {
-			logger.log(Level.WARNING, "RepeatingTaskHandler", e)
-			0.0
-		}
-	}
-
-	val exceptions: List<Exception>
-		get() = interrupted
 
 	/**
 	 * Removes the task corresponding to the given key
@@ -136,25 +77,10 @@ object RepeatingTaskHandler: TaskHandler() {
 	 * @param key the key of the task to remove
 	 * @return true, if successful
 	 */
-	fun remove(key: Any): Boolean {
-		return try {
-			val caller = getCallingClass()
-			val i = taskInformationMap[key]
-			logger.fine("remove $key $caller $i") // TODO sometimes causes ConcurrentModificationException fix
-			(i != null && i.clazz == caller) && taskInformationMap.remove(key) != null
-		} catch (e: ClassNotFoundException) {
-			logger.log(Level.WARNING, "RepeatingTaskHandler", e)
-			false
-		}
-	}
-
-	fun removeAll() {
-		try {
-			val caller = getCallingClass()
-			taskInformationMap.entries.removeIf { (_, value): Map.Entry<Any, Information> -> value.clazz == caller }
-		} catch (e: ClassNotFoundException) {
-			logger.log(Level.WARNING, "RepeatingTaskHandler", e)
-		}
+	@Deprecated("Use the function on Multicore", ReplaceWith("Multicore.removeTask(key)"))
+	@Suppress("NOTHING_TO_INLINE")
+	inline fun remove(key: Any): Boolean {
+		return MultiCore.removeTask(key.toString())
 	}
 
 	fun printAll(logger: Logger) {
