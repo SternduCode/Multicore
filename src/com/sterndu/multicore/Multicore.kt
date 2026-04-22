@@ -34,7 +34,9 @@ abstract class Task(
 	internal val internalTask: () -> Unit get() = task
 }
 
-object MultiCore {
+typealias MultiCore = Multicore
+
+object Multicore {
 
 	private class ManagedTask(
 		val key: String,
