@@ -11,7 +11,7 @@ abstract class TaskHandler(
 
 	protected abstract fun getTask(): (() -> Unit)?
 
-	final override val task: () -> Unit get() = getTask() ?: NullTaskHandler.internalGetTask()
+	final override val runnable: () -> Unit get() = getTask() ?: NullTaskHandler.internalGetTask()
 
 	abstract fun hasTask(): Boolean
 

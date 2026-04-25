@@ -13,7 +13,7 @@ abstract class Task(
 
 	internal val startTimes: MutableList<Long> = mutableListOf(0)
 	internal val runTimes: MutableList<Long> = mutableListOf()
-	protected abstract val task: () -> Unit
+	protected abstract val runnable: () -> Unit
 
 	init {
 		require(millis >= 0) { "Millis cannot be negative." }
@@ -31,7 +31,7 @@ abstract class Task(
 
 	val isRepeating: Boolean get() = millis != 0L
 
-	internal val internalTask: () -> Unit get() = task
+	internal val internalRunnable: () -> Unit get() = runnable
 }
 
 typealias MultiCore = Multicore
@@ -45,7 +45,7 @@ object Multicore {
 		nextRun: Long = 0,
 		canRunSimultaneously: Boolean = false,
 		val clazz: Class<*>,
-		override val task: () -> Unit,
+		override val runnable: () -> Unit,
 	): Task(millis, isFixedDelay, nextRun, canRunSimultaneously)
 
 	val logger = LoggingUtil.getLogger("MultiCore")
@@ -78,7 +78,7 @@ object Multicore {
 	}
 
 	private val kernel: (Task) -> Unit = { task ->
-		proxyKernel(task, task.internalTask)
+		proxyKernel(task, task.internalRunnable)
 	}
 
 	init {
@@ -91,7 +91,7 @@ object Multicore {
 						is TaskHandler -> {
 							while (task.hasTask()) {
 								ses.schedule(
-									{ proxyKernel(task, task.internalTask) },
+									{ proxyKernel(task, task.internalRunnable) },
 									(task.nextRun - System.currentTimeMillis()).coerceAtLeast(0),
 									TimeUnit.MILLISECONDS,
 								)
@@ -159,7 +159,7 @@ object Multicore {
 			nextRun = System.currentTimeMillis() + delay,
 			canRunSimultaneously = false,
 			clazz = getCallingClass(),
-			task = task
+			runnable = task
 		))
 	}
 
@@ -174,7 +174,7 @@ object Multicore {
 			nextRun = System.currentTimeMillis() + delay,
 			canRunSimultaneously = false,
 			clazz = getCallingClass(),
-			task = task
+			runnable = task
 		))
 	}
 
@@ -189,7 +189,7 @@ object Multicore {
 			nextRun = System.currentTimeMillis() + delay,
 			canRunSimultaneously = canRunSimultaneously,
 			clazz = getCallingClass(),
-			task = task
+			runnable = task
 		))
 	}
 
