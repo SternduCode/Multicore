@@ -11,7 +11,7 @@ object CustomMultiCore {
 
 	private val threads: MutableMap<Thread, CustomMultiCoreThreadState> = HashMap()
 
-	private val queue = ArrayDeque<Pair<TaskHandler, Runnable>>()
+	private val queue = ArrayDeque<Pair<TaskHandler, () -> Unit>>()
 
 	private val simThreadsLock = Any()
 
@@ -30,8 +30,9 @@ object CustomMultiCore {
 			val st = System.currentTimeMillis()
 			state.hasTask = true
 			try {
-				trowingRunnable.run()
-				taskHandler.addTime(System.currentTimeMillis() - st)
+				trowingRunnable()
+				taskHandler.startTimes.add(st)
+				taskHandler.runTimes.add(System.currentTimeMillis() - st)
 			} catch (e: Exception) {
 				logger.log(Level.WARNING, "CustomMultiCore", e)
 			}
@@ -57,7 +58,7 @@ object CustomMultiCore {
 		Runtime.getRuntime().addShutdownHook(Thread { close() })
 	}
 
-	private val task: Pair<TaskHandler, Runnable>?
+	private val task: Pair<TaskHandler, () -> Unit>?
 		get() {
 			//logger.info("Im ${Thread.currentThread().name}")
 			synchronized(queue) {
@@ -66,7 +67,7 @@ object CustomMultiCore {
 						taskHandlers.forEach { taskHandler ->
 							if (taskHandler is RepeatingTaskHandler) {
 								queue.add(
-									taskHandler to Runnable {
+									taskHandler to {
 										taskHandler.taskInformationMap.map(Map.Entry<Any, RepeatingTaskHandler.Information>::value).forEach { information -> taskHandler.r(information) }
 									}
 								)
