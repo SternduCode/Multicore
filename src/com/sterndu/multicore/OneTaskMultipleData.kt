@@ -39,7 +39,7 @@ class OneTaskMultipleData<T, E, O> : TaskHandler {
 		results[key] = res
 	}
 
-	override fun hasTask(): Boolean {
+	override val hasTask: Boolean get() {
 		return paramsList.isNotEmpty()
 	}
 

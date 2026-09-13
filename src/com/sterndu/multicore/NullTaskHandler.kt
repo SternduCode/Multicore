@@ -8,7 +8,7 @@ object NullTaskHandler: TaskHandler() {
 	override fun internalGetTask(): () -> Unit = nullTask
 	override fun getTask(): () -> Unit = nullTask
 
-	override fun hasTask(): Boolean {
+	override val hasTask: Boolean get() {
 		return false
 	}
 

@@ -1,19 +1,45 @@
-@file:JvmName("MultiCore")
+@file:JvmName("MulticoreKt")
 package com.sterndu.multicore
 
 import java.util.concurrent.*
 import java.util.logging.Level
 
+class CircularFixedSizeBuffer<E>(
+	val capacity: Int
+): List<E> {
+	private val internalData: ArrayDeque<E> = ArrayDeque(capacity)
+	override val size: Int get() = internalData.size
+	override fun isEmpty(): Boolean = internalData.isEmpty()
+	override fun contains(element: E): Boolean = internalData.contains(element)
+	override fun iterator(): Iterator<E> = internalData.iterator()
+	override fun containsAll(elements: Collection<E>): Boolean = internalData.containsAll(elements)
+	override fun get(index: Int): E = internalData.get(index)
+	override fun indexOf(element: E): Int = internalData.indexOf(element)
+	override fun lastIndexOf(element: E): Int = internalData.lastIndexOf(element)
+	override fun listIterator(): ListIterator<E> = internalData.listIterator()
+	override fun listIterator(index: Int): ListIterator<E> = internalData.listIterator(index)
+	override fun subList(fromIndex: Int, toIndex: Int): List<E> = internalData.subList(fromIndex, toIndex)
+
+	fun add(element: E) {
+		if (size >= capacity) {
+			internalData.removeFirst()
+		}
+		internalData.addLast(element)
+	}
+}
+
 abstract class Task(
-	val millis: Long = 0,
+	open val millis: Long = 0,
 	val isFixedDelay: Boolean = false,
-	var nextRun: Long = 0,
+	open var nextRun: Long = 0,
 	val canRunSimultaneously: Boolean = false,
 ) {
 
-	internal val startTimes: MutableList<Long> = mutableListOf(0)
-	internal val runTimes: MutableList<Long> = mutableListOf()
-	protected abstract val runnable: () -> Unit
+	internal val startTimes: CircularFixedSizeBuffer<Long> = CircularFixedSizeBuffer(20)
+	internal val runTimes: CircularFixedSizeBuffer<Long> = CircularFixedSizeBuffer(20)
+	internal val _exceptions: CircularFixedSizeBuffer<Exception> = CircularFixedSizeBuffer(10)
+	val exceptions: List<Exception> get() = _exceptions.toList()
+	protected abstract val operation: () -> Unit
 
 	init {
 		require(millis >= 0) { "Millis cannot be negative." }
@@ -31,12 +57,13 @@ abstract class Task(
 
 	val isRepeating: Boolean get() = millis != 0L
 
-	internal val internalRunnable: () -> Unit get() = runnable
+	internal val internalOperation: () -> Unit get() = operation
 }
 
+@Deprecated("Use Multicore instead", ReplaceWith("Multicore"))
 typealias MultiCore = Multicore
 
-object Multicore {
+object Multicore: MulticoreSpec {
 
 	private class ManagedTask(
 		val key: String,
@@ -45,43 +72,42 @@ object Multicore {
 		nextRun: Long = 0,
 		canRunSimultaneously: Boolean = false,
 		val clazz: Class<*>,
-		override val runnable: () -> Unit,
+		override val operation: () -> Unit,
 	): Task(millis, isFixedDelay, nextRun, canRunSimultaneously)
 
-	val logger = LoggingUtil.getLogger("MultiCore")
-
-	private val ses = Executors.newScheduledThreadPool(
-		Runtime.getRuntime().availableProcessors(),
-		Thread.ofVirtual().factory()
-	) as ScheduledThreadPoolExecutor
+	private lateinit var ses: ScheduledThreadPoolExecutor
 
 	private val tasks: MutableList<Task> = CopyOnWriteArrayList()
 	private val scheduledTasks: MutableMap<Any, ScheduledFuture<*>> = HashMap()
+
+	val logger = LoggingUtil.getLogger("MultiCore")
 
 	private val proxyKernel: (Task, () -> Unit) -> Unit = { task, runnable ->
 		val st = System.currentTimeMillis()
 		try {
 			task.startTimes.add(st)
 			runnable()
-			var et = System.currentTimeMillis()
-			et -= st
-			task.runTimes.add(et)
-			while (task.startTimes.size >= 20) {
-				task.startTimes.removeAt(0)
-			}
-			while (task.runTimes.size >= 20) {
-				task.runTimes.removeAt(0)
-			}
+			task.runTimes.add(System.currentTimeMillis() - st)
 		} catch (e: Exception) {
 			logger.log(Level.WARNING, "Multicore", e)
+			task.runTimes.add(System.currentTimeMillis() - st)
+			task._exceptions.add(e)
 		}
 	}
 
 	private val kernel: (Task) -> Unit = { task ->
-		proxyKernel(task, task.internalRunnable)
+		proxyKernel(task, task.internalOperation)
 	}
 
-	init {
+
+	override fun start() {
+		tasks.clear()
+		scheduledTasks.clear()
+
+		ses = Executors.newScheduledThreadPool(
+			Runtime.getRuntime().availableProcessors(),
+			Thread.ofVirtual().factory()
+		) as ScheduledThreadPoolExecutor
 		ses.allowCoreThreadTimeOut(true)
 		ses.scheduleWithFixedDelay({
 			// DEBUG logger.info("Doing House keeping")
@@ -89,9 +115,10 @@ object Multicore {
 				for (task in tasks) {
 					when (task) {
 						is TaskHandler -> {
-							while (task.hasTask()) {
+							while (task.hasTask) {
+								val internalOperation = task.internalOperation
 								ses.schedule(
-									{ proxyKernel(task, task.internalRunnable) },
+									{ proxyKernel(task, internalOperation) },
 									(task.nextRun - System.currentTimeMillis()).coerceAtLeast(0),
 									TimeUnit.MILLISECONDS,
 								)
@@ -147,11 +174,15 @@ object Multicore {
 				logger.log(Level.WARNING, "MultiCore ${e.javaClass.simpleName} ${e.message} ${e.cause}", e)
 			}
 		}, 0, 1, TimeUnit.MILLISECONDS)
+	}
+
+	init {
+		start()
 		
 		Runtime.getRuntime().addShutdownHook(Thread { stop() })
 	}
 
-	fun scheduleTask(delay: Long = 0, task: () -> Unit): Boolean {
+	override fun scheduleTask(delay: Long, task: () -> Unit): Boolean {
 		return tasks.add(ManagedTask(
 			key = "",
 			millis = 0,
@@ -159,41 +190,35 @@ object Multicore {
 			nextRun = System.currentTimeMillis() + delay,
 			canRunSimultaneously = false,
 			clazz = getCallingClass(),
-			runnable = task
+			operation = task
 		))
 	}
 
-	fun scheduleTaskWithFixedDelay(key: String, delay: Long = 0, millis: Long = 0, task: () -> Unit): Boolean {
-		if (key.isBlank() || key in tasks.filterIsInstance<ManagedTask>().map { it.key }) {
-			return false
-		}
-		return tasks.add(ManagedTask(
-			key = key,
-			millis = millis,
-			isFixedDelay = true,
-			nextRun = System.currentTimeMillis() + delay,
-			canRunSimultaneously = false,
-			clazz = getCallingClass(),
-			runnable = task
-		))
-	}
+	override fun scheduleTaskWithFixedDelay(key: String, delay: Long, millis: Long, task: () -> Unit): Boolean {
+        return !(key.isBlank() || key in tasks.filterIsInstance<ManagedTask>().map { it.key }) && tasks.add(ManagedTask(
+            key = key,
+            millis = millis,
+            isFixedDelay = true,
+            nextRun = System.currentTimeMillis() + delay,
+            canRunSimultaneously = false,
+            clazz = getCallingClass(),
+            operation = task
+        ))
+    }
 
-	fun scheduleTaskAtFixedRate(key: String, delay: Long = 0, millis: Long = 0, canRunSimultaneously: Boolean = false, task: () -> Unit): Boolean {
-		if (key.isBlank() || key in tasks.filterIsInstance<ManagedTask>().map { it.key }) {
-			return false
-		}
-		return tasks.add(ManagedTask(
-			key = key,
-			millis = millis,
-			isFixedDelay = false,
-			nextRun = System.currentTimeMillis() + delay,
-			canRunSimultaneously = canRunSimultaneously,
-			clazz = getCallingClass(),
-			runnable = task
-		))
-	}
+	override fun scheduleTaskAtFixedRate(key: String, delay: Long, millis: Long, canRunSimultaneously: Boolean, task: () -> Unit): Boolean {
+        return !(key.isBlank() || key in tasks.filterIsInstance<ManagedTask>().map { it.key }) && tasks.add(ManagedTask(
+            key = key,
+            millis = millis,
+            isFixedDelay = false,
+            nextRun = System.currentTimeMillis() + delay,
+            canRunSimultaneously = canRunSimultaneously,
+            clazz = getCallingClass(),
+            operation = task
+        ))
+    }
 
-	fun removeTask(key: String): Boolean {
+	override fun removeTask(key: String): Boolean {
 		var result = false
 		val caller = getCallingClass()
         tasks.filterIsInstance<ManagedTask>()
@@ -206,14 +231,14 @@ object Multicore {
 		return result
 	}
 
-	fun getAverageExecutionFrequency(key: String): Double? {
+	override fun getAverageExecutionFrequency(key: String): Double? {
 		val caller = getCallingClass()
 		return tasks.filterIsInstance<ManagedTask>()
 			.singleOrNull { it.clazz == caller && it.key == key }
 			?.averageFrequency()
 	}
 
-	fun getAverageExecutionTime(key: String): Double? {
+	override fun getAverageExecutionTime(key: String): Double? {
 		val caller = getCallingClass()
         return tasks.filterIsInstance<ManagedTask>()
 			.singleOrNull { it.clazz == caller && it.key == key }
@@ -229,32 +254,27 @@ object Multicore {
 		return amountOfAvailableTasks
 	}
 
-	private val activeThreadsCount: Int
-		get() = ses.activeCount
+	val activeThreadsCount: Int get() = ses.activeCount
 
-	fun addTaskHandler(taskHandler: TaskHandler) {
-		this.tasks.add(taskHandler)
+	val amountOfAvailableTasks: Int get() = scheduledTasks.size
+
+	val simultaneousThreadsCount: Int get() = ses.maximumPoolSize
+
+	override fun addTaskHandler(taskHandler: TaskHandler) {
+		tasks.add(taskHandler)
 		checkIfMoreThreadsAreRequiredAndStartSomeIfNeeded()
 	}
 
-	fun stop() {
+	override fun removeTaskHandler(taskHandler: TaskHandler): Boolean {
+		return tasks.remove(taskHandler)
+	}
+
+	override fun stop() {
 		ses.shutdown()
 	}
 
-	val amountOfAvailableTasks: Int
-		get() {
-			return this.scheduledTasks.size
-		}
-
-	fun getSimultaneousThreads(): Int {
-		return ses.maximumPoolSize
-	}
-
-	fun getActiveThreads() = ses.activeCount
-
-	fun removeTaskHandler(taskHandler: TaskHandler): Boolean {
-		return tasks.remove(taskHandler)
-	}
+	override val isStopping: Boolean get() = ses.isTerminating
+	override val isStopped: Boolean get() = ses.isTerminated
 
 	@Synchronized
 	fun setSimultaneousThreads(amount: Int) {

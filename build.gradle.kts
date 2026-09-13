@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.sterndu"
-version = "1.0.0"
+version = "2.0.0"
 
 sourceSets.main {
 	java.srcDirs("src")

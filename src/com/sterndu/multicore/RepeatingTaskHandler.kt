@@ -6,7 +6,7 @@ import java.util.logging.Level
 import java.util.logging.Logger
 
 @Deprecated("Use RepeatingTaskHandler instead", ReplaceWith("RepeatingTaskHandler"))
-typealias Updater = RepeatingTaskHandler
+typealias Updater = MultiCore
 
 @Deprecated("Use Multicore instead", ReplaceWith("MultiCore"))
 object RepeatingTaskHandler: TaskHandler() {
@@ -42,7 +42,7 @@ object RepeatingTaskHandler: TaskHandler() {
 		return NullTaskHandler.nullTask
 	}
 
-	override fun hasTask(): Boolean {
+	override val hasTask: Boolean get() {
 		return false
 	}
 
@@ -55,7 +55,7 @@ object RepeatingTaskHandler: TaskHandler() {
 	@Deprecated("Use the function on Multicore", ReplaceWith("Multicore.scheduleTaskAtFixedRate(key, 0, task)"))
 	@Suppress("NOTHING_TO_INLINE")
 	inline fun add(key: Any, task: Runnable) {
-		MultiCore.scheduleTaskAtFixedRate(key.toString(), millis = 0, task = task::run)
+		Multicore.scheduleTaskAtFixedRate(key.toString(), millis = 0, task = task::run)
 	}
 
 	/**
@@ -68,7 +68,7 @@ object RepeatingTaskHandler: TaskHandler() {
 	@Deprecated("Use the function on Multicore", ReplaceWith("Multicore.scheduleTaskAtFixedRate(key, millis, task)"))
 	@Suppress("NOTHING_TO_INLINE")
 	inline fun add(key: Any, millis: Long, task: Runnable) {
-		MultiCore.scheduleTaskAtFixedRate(key.toString(), millis = millis, task = task::run)
+		Multicore.scheduleTaskAtFixedRate(key.toString(), millis = millis, task = task::run)
 	}
 
 	/**
@@ -80,7 +80,7 @@ object RepeatingTaskHandler: TaskHandler() {
 	@Deprecated("Use the function on Multicore", ReplaceWith("Multicore.removeTask(key)"))
 	@Suppress("NOTHING_TO_INLINE")
 	inline fun remove(key: Any): Boolean {
-		return MultiCore.removeTask(key.toString())
+		return Multicore.removeTask(key.toString())
 	}
 
 	fun printAll(logger: Logger) {
